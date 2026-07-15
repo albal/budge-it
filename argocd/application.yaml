@@ -1,0 +1,31 @@
+# OpenShift GitOps (Argo CD) keeps the cluster in sync with the manifests in
+# this repository. Apply once to the namespace where the Argo CD instance
+# runs (openshift-gitops by default).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: budge-it
+  namespace: openshift-gitops
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/albal/budge-it.git
+    targetRevision: main
+    path: deploy/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: budge-it
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false # the base manifests own the Namespace
+      - PruneLast=true
+  ignoreDifferences:
+    # The HPA owns backend replicas; don't fight it.
+    - group: apps
+      kind: Deployment
+      name: budgeit-backend
+      jsonPointers:
+        - /spec/replicas

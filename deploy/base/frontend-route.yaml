@@ -1,0 +1,15 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: budgeit
+  labels:
+    app: budgeit-frontend
+spec:
+  to:
+    kind: Service
+    name: budgeit-frontend
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

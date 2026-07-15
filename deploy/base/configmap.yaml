@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: budgeit-config
+data:
+  # External OCR service that turns PDF/image statements into text
+  # (e.g. an in-cluster Tesseract server or a hosted OCR API).
+  OCR_ENDPOINT: ""
+  # Public URL of the frontend Route (informational, used for CORS/links).
+  PUBLIC_URL: "https://budgeit.apps.example.com"
+  WORKERS: "4"
+  MAX_UPLOAD_BYTES: "10485760"

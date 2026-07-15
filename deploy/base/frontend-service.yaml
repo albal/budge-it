@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: budgeit-frontend
+  labels:
+    app: budgeit-frontend
+spec:
+  selector:
+    app: budgeit-frontend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

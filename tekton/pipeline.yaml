@@ -1,0 +1,136 @@
+# OpenShift Pipelines (Tekton) build: clone -> test -> build both images with
+# Buildah -> bump the GitOps overlay so Argo CD rolls out the new tag.
+# Tasks are resolved from the cluster (OpenShift Pipelines ships git-clone
+# and buildah as cluster resolver tasks).
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: budgeit-build
+  namespace: budge-it-ci
+spec:
+  params:
+    - name: git-url
+      type: string
+      description: Repository with the application source and manifests
+    - name: git-revision
+      type: string
+      default: main
+    - name: image-registry
+      type: string
+      default: image-registry.openshift-image-registry.svc:5000/budge-it
+    - name: image-tag
+      type: string
+      default: latest
+  workspaces:
+    - name: source
+  tasks:
+    - name: fetch-source
+      taskRef:
+        resolver: cluster
+        params:
+          - name: kind
+            value: task
+          - name: name
+            value: git-clone
+          - name: namespace
+            value: openshift-pipelines
+      params:
+        - name: URL
+          value: $(params.git-url)
+        - name: REVISION
+          value: $(params.git-revision)
+      workspaces:
+        - name: output
+          workspace: source
+
+    - name: test-backend
+      runAfter: [fetch-source]
+      workspaces:
+        - name: source
+          workspace: source
+      taskSpec:
+        workspaces:
+          - name: source
+        steps:
+          - name: go-test
+            image: registry.access.redhat.com/ubi9/go-toolset:latest
+            workingDir: $(workspaces.source.path)/backend
+            script: |
+              #!/bin/sh
+              set -e
+              go vet ./...
+              go test ./...
+
+    - name: build-backend
+      runAfter: [test-backend]
+      taskRef:
+        resolver: cluster
+        params:
+          - name: kind
+            value: task
+          - name: name
+            value: buildah
+          - name: namespace
+            value: openshift-pipelines
+      params:
+        - name: IMAGE
+          value: $(params.image-registry)/budgeit-backend:$(params.image-tag)
+        - name: CONTEXT
+          value: backend
+        - name: DOCKERFILE
+          value: backend/Dockerfile
+      workspaces:
+        - name: source
+          workspace: source
+
+    - name: build-frontend
+      runAfter: [test-backend]
+      taskRef:
+        resolver: cluster
+        params:
+          - name: kind
+            value: task
+          - name: name
+            value: buildah
+          - name: namespace
+            value: openshift-pipelines
+      params:
+        - name: IMAGE
+          value: $(params.image-registry)/budgeit-frontend:$(params.image-tag)
+        - name: CONTEXT
+          value: frontend
+        - name: DOCKERFILE
+          value: frontend/Dockerfile
+      workspaces:
+        - name: source
+          workspace: source
+
+    - name: update-gitops
+      runAfter: [build-backend, build-frontend]
+      workspaces:
+        - name: source
+          workspace: source
+      params:
+        - name: image-registry
+          value: $(params.image-registry)
+        - name: image-tag
+          value: $(params.image-tag)
+      taskSpec:
+        params:
+          - name: image-registry
+          - name: image-tag
+        workspaces:
+          - name: source
+        steps:
+          - name: kustomize-set-image
+            image: registry.k8s.io/kustomize/kustomize:v5.4.3
+            workingDir: $(workspaces.source.path)/deploy/overlays/prod
+            script: |
+              #!/bin/sh
+              set -e
+              kustomize edit set image \
+                "$(params.image-registry)/budgeit-backend:$(params.image-tag)" \
+                "$(params.image-registry)/budgeit-frontend:$(params.image-tag)"
+              echo "Prod overlay now points at tag $(params.image-tag)."
+              echo "Commit and push this change so Argo CD syncs it, e.g. via a"
+              echo "git-cli task with push credentials."

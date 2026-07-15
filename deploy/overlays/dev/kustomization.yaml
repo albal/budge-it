@@ -1,0 +1,41 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: budge-it-dev
+
+resources:
+  - ../../base
+
+patches:
+  # Single-instance database without HA for dev
+  - target:
+      kind: PostgresCluster
+      name: budgeit-db
+    patch: |-
+      - op: replace
+        path: /spec/instances/0/replicas
+        value: 1
+  - target:
+      kind: Deployment
+      name: budgeit-frontend
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: budgeit-backend
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/maxReplicas
+        value: 3
+  - target:
+      kind: Namespace
+      name: budge-it
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: budge-it-dev

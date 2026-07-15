@@ -1,0 +1,25 @@
+# Manual run:  oc create -f tekton/pipelinerun-example.yaml
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: budgeit-build-
+  namespace: budge-it-ci
+spec:
+  pipelineRef:
+    name: budgeit-build
+  params:
+    - name: git-url
+      value: https://github.com/your-org/budge-it.git
+    - name: git-revision
+      value: main
+    - name: image-tag
+      value: latest
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi

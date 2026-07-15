@@ -1,0 +1,17 @@
+# Scraped by OpenShift user-workload monitoring / the Cluster Observability
+# Operator. Exposes budgeit_http_request_duration_seconds,
+# budgeit_processing_* and Go runtime metrics.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: budgeit-backend
+  labels:
+    app: budgeit-backend
+spec:
+  selector:
+    matchLabels:
+      app: budgeit-backend
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s

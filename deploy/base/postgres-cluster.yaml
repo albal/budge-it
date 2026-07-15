@@ -1,0 +1,46 @@
+# Crunchy Data Postgres Operator (or the Red Hat build) provisions an HA
+# PostgreSQL cluster with automated backups from this single CR.
+# The operator generates the connection secret budgeit-db-pguser-budgeit,
+# whose `uri` key the backend consumes as DATABASE_URL.
+apiVersion: postgres-operator.crunchydata.com/v1beta1
+kind: PostgresCluster
+metadata:
+  name: budgeit-db
+spec:
+  postgresVersion: 16
+  instances:
+    - name: instance1
+      replicas: 2
+      dataVolumeClaimSpec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 5Gi
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          memory: 1Gi
+  users:
+    - name: budgeit
+      databases:
+        - budgeit
+  backups:
+    pgbackrest:
+      repos:
+        - name: repo1
+          schedules:
+            full: "0 1 * * 0"        # weekly full backup, Sunday 01:00
+            differential: "0 1 * * 1-6"
+          volume:
+            volumeClaimSpec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 10Gi
+  monitoring:
+    pgmonitor:
+      exporter: {}

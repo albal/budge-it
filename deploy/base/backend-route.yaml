@@ -1,0 +1,18 @@
+# Edge-terminated Route for direct API access (the frontend nginx also
+# proxies /api internally). TLS certificate comes from the router's default
+# wildcard cert.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: budgeit-api
+  labels:
+    app: budgeit-backend
+spec:
+  to:
+    kind: Service
+    name: budgeit-backend
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

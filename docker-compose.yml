@@ -1,0 +1,45 @@
+# Local development only — in OpenShift these services come from the Crunchy
+# Postgres operator and ODF ObjectBucketClaim.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: budgeit
+      POSTGRES_PASSWORD: budgeit
+      POSTGRES_DB: budgeit
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U budgeit"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: quay.io/minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: budgeit
+      MINIO_ROOT_PASSWORD: budgeit-secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+
+  create-bucket:
+    image: quay.io/minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 3 &&
+      mc alias set local http://minio:9000 budgeit budgeit-secret &&
+      mc mb --ignore-existing local/budgeit-uploads
+      "
+
+volumes:
+  pgdata:
+  miniodata:
