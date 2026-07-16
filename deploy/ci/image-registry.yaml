@@ -1,0 +1,38 @@
+# Bare-metal OpenShift ships with the internal image registry Removed (it
+# has no storage to use). The whole CI flow depends on it — Buildah pushes
+# to image-registry.openshift-image-registry.svc:5000/budge-it/... and the
+# Deployments pull from there — so this enables it, backed by an ODF CephFS
+# volume. The Config CR is a cluster singleton that already exists; Argo
+# adopts it and patches in the fields below. It lives in this app (not the
+# main budge-it app) because pruning is off here: deleting the CI app must
+# never disable the cluster's registry.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: image-registry-storage
+  namespace: openshift-image-registry
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: ocs-storagecluster-cephfs
+---
+apiVersion: imageregistry.operator.openshift.io/v1
+kind: Config
+metadata:
+  name: cluster
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  managementState: Managed
+  replicas: 1
+  # Recreate because a PVC-backed registry can't do rolling updates on a
+  # single volume mount.
+  rolloutStrategy: Recreate
+  storage:
+    pvc:
+      claim: image-registry-storage

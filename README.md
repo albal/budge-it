@@ -97,7 +97,9 @@ uninstall Tekton for the rest of the cluster.
    installing the operator's CRD self-heal on its own instead of stalling.
 3. **CI** — apply `argocd/ci-application.yaml` to `openshift-gitops`. It
    installs the OpenShift Pipelines operator (OLM Subscription in
-   `openshift-operators`) and owns the `budge-it-ci` namespace with the
+   `openshift-operators`), enables the internal image registry (Removed by
+   default on bare metal) backed by an ODF CephFS volume, and owns the
+   `budge-it-ci` namespace with the
    build Pipeline, Triggers, EventListener, and a RoleBinding letting the
    CI `pipeline` serviceaccount push images into the `budge-it` registry
    namespace. Builds are triggered by the `budgeit-commit-poller` CronJob,
