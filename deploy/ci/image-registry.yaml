@@ -14,12 +14,15 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "-2"
 spec:
+  # RBD (RWO) rather than CephFS: with rolloutStrategy Recreate and a single
+  # replica the registry never needs shared access, and on a single-node
+  # cluster the CephFS pools can't reach active state anyway.
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
   resources:
     requests:
       storage: 50Gi
-  storageClassName: ocs-storagecluster-cephfs
+  storageClassName: ocs-storagecluster-ceph-rbd
 ---
 apiVersion: imageregistry.operator.openshift.io/v1
 kind: Config

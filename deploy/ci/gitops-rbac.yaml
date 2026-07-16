@@ -1,0 +1,30 @@
+# The default OpenShift GitOps controller can manage labeled namespaces but
+# not cluster singletons like the image registry operator's Config. Grant
+# exactly that. If Argo itself is blocked from creating this by RBAC
+# escalation rules, bootstrap it once by hand:
+#   oc apply -f deploy/ci/gitops-rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: gitops-imageregistry-config
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+rules:
+  - apiGroups: [imageregistry.operator.openshift.io]
+    resources: [configs]
+    verbs: [get, list, watch, patch, update]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: gitops-imageregistry-config
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: gitops-imageregistry-config
+subjects:
+  - kind: ServiceAccount
+    name: openshift-gitops-argocd-application-controller
+    namespace: openshift-gitops

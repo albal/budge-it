@@ -19,6 +19,9 @@ spec:
     - name: instance1
       replicas: 2
       dataVolumeClaimSpec:
+        # Explicit class: this cluster has no default StorageClass, and a
+        # class-less PVC stays Pending forever.
+        storageClassName: ocs-storagecluster-ceph-rbd
         accessModes:
           - ReadWriteOnce
         resources:
@@ -43,6 +46,7 @@ spec:
             differential: "0 1 * * 1-6"
           volume:
             volumeClaimSpec:
+              storageClassName: ocs-storagecluster-ceph-rbd
               accessModes:
                 - ReadWriteOnce
               resources:
