@@ -133,6 +133,14 @@ func (e *Engine) Categorize(description string) string {
 	}
 	// 2. Built-in keyword table.
 	for kw, cat := range defaultKeywords {
+		if len(kw) <= 3 {
+			for _, tok := range strings.Fields(norm) {
+				if tok == kw {
+					return cat
+				}
+			}
+			continue
+		}
 		if strings.Contains(norm, kw) {
 			return cat
 		}

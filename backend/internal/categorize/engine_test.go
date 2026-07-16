@@ -24,6 +24,15 @@ func TestCategorize(t *testing.T) {
 	}
 }
 
+func TestCategorizeShortKeywordsDontMatchInsideWords(t *testing.T) {
+	engine := NewEngine(nil)
+	for i := 0; i < 100; i++ {
+		if got := engine.Categorize("Netflix.com"); got != "Subscriptions" {
+			t.Fatalf("Categorize(Netflix.com) = %q, want %q", got, "Subscriptions")
+		}
+	}
+}
+
 func TestNormalize(t *testing.T) {
 	if got := Normalize("AMZN*Mktplace-0442  "); got != "AMZN MKTPLACE 0442" {
 		t.Errorf("Normalize = %q", got)
