@@ -1,0 +1,32 @@
+# Argo CD Application owning the OpenShift Pipelines operator install.
+# Kept separate from the budge-it app because this operator is cluster-wide
+# infrastructure shared beyond this project: the budge-it app runs with
+# prune: true, and bundling a cluster-wide operator there would risk Argo
+# uninstalling Tekton for the whole cluster if that app were removed.
+# Apply once alongside argocd/application.yaml:
+#   oc apply -f argocd/pipelines-operator-application.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: budge-it-pipelines-operator
+  namespace: openshift-gitops
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/albal/budge-it.git
+    targetRevision: main
+    path: deploy/operators/pipelines
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openshift-operators
+  syncPolicy:
+    automated:
+      # prune deliberately off: deleting this Application should orphan the
+      # operator, not uninstall Tekton cluster-wide.
+      selfHeal: true
+    retry:
+      limit: 5
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m

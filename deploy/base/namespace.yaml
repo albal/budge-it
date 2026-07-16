@@ -7,3 +7,7 @@ metadata:
   labels:
     # Enables user-workload monitoring scrape targets in this namespace
     openshift.io/cluster-monitoring: "false"
+    # Tells the OpenShift GitOps operator to grant its Argo CD
+    # application-controller RBAC in this namespace; without it every
+    # create is forbidden and the sync fails.
+    argocd.argoproj.io/managed-by: openshift-gitops
