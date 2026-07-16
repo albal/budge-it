@@ -8,6 +8,11 @@ metadata:
   name: budgeit-db
   annotations:
     argocd.argoproj.io/sync-wave: "0"
+    # The PostgresCluster CRD is installed by the wave -1 Subscription during
+    # this same sync. Without this option Argo's pre-sync dry-run fails on the
+    # unknown kind and aborts the whole sync before the Subscription is ever
+    # applied, deadlocking the app on "CRD not installed".
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   postgresVersion: 16
   instances:
