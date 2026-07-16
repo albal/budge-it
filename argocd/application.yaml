@@ -41,3 +41,10 @@ spec:
       name: budgeit-backend
       jsonPointers:
         - /spec/replicas
+    # The CI pipeline's promote task uses `oc rollout restart` to roll the
+    # Deployments onto the freshly pushed :latest; without this, selfHeal
+    # would strip the restart annotation and trigger a second rollout.
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt

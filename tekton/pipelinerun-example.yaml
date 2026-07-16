@@ -12,8 +12,8 @@ spec:
       value: https://github.com/your-org/budge-it.git
     - name: git-revision
       value: main
-    - name: image-tag
-      value: latest
+    # version defaults to "latest", meaning no extra tag is stamped; set it
+    # (e.g. to a commit SHA) to also tag both images with that version.
   workspaces:
     - name: source
       volumeClaimTemplate:

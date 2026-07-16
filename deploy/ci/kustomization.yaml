@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - subscription.yaml
+  - pipeline.yaml
+  - triggers.yaml
+  - eventlistener-route.yaml
+  - registry-rbac.yaml

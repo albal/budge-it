@@ -1,0 +1,38 @@
+# Argo CD Application owning the CI stack: the OpenShift Pipelines operator
+# install plus the budge-it-ci namespace with the build Pipeline, webhook
+# Triggers, EventListener Route, and registry-push RBAC.
+# Kept separate from the budge-it app because the Pipelines operator is
+# cluster-wide infrastructure shared beyond this project: the budge-it app
+# runs with prune: true, and bundling a cluster-wide operator there would
+# risk Argo uninstalling Tekton for the whole cluster if that app were
+# ever removed.
+# Apply once alongside argocd/application.yaml:
+#   oc apply -f argocd/ci-application.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: budge-it-ci
+  namespace: openshift-gitops
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/albal/budge-it.git
+    targetRevision: main
+    path: deploy/ci
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: budge-it-ci
+  syncPolicy:
+    automated:
+      # prune deliberately off: deleting this Application should orphan the
+      # operator, not uninstall Tekton cluster-wide.
+      selfHeal: true
+    # Same reasoning as the main app: the Pipelines CRDs aren't Established
+    # the instant the Subscription is applied, so let the Pipeline/Triggers
+    # wave self-heal once OLM finishes installing the operator.
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m

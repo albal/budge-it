@@ -5,6 +5,11 @@ kind: TriggerBinding
 metadata:
   name: budgeit-push
   namespace: budge-it-ci
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    # Triggers CRDs are installed by the wave -1 Subscription mid-sync;
+    # see pipeline.yaml for why the dry-run must be skipped.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   params:
     - name: git-url
@@ -17,6 +22,9 @@ kind: TriggerTemplate
 metadata:
   name: budgeit-build
   namespace: budge-it-ci
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   params:
     - name: git-url
@@ -34,7 +42,7 @@ spec:
             value: $(tt.params.git-url)
           - name: git-revision
             value: $(tt.params.git-revision)
-          - name: image-tag
+          - name: version
             value: $(tt.params.git-revision)
         workspaces:
           - name: source
@@ -51,6 +59,9 @@ kind: EventListener
 metadata:
   name: budgeit
   namespace: budge-it-ci
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   serviceAccountName: pipeline
   triggers:

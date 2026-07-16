@@ -1,12 +1,14 @@
 # OLM install of OpenShift Pipelines (Tekton). Unlike the Crunchy operator,
 # this one is cluster-wide: it must live in openshift-operators (which has
-# the global OperatorGroup) and provides Pipelines/Triggers CRDs for every
-# namespace, including budge-it-ci.
+# the global OperatorGroup) and provides the Pipelines/Triggers CRDs for
+# every namespace, including budge-it-ci.
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
   name: openshift-pipelines-operator-rh
   namespace: openshift-operators
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   channel: latest
   name: openshift-pipelines-operator-rh

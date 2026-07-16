@@ -1,12 +1,20 @@
 # OpenShift Pipelines (Tekton) build: clone -> test -> build both images with
-# Buildah -> bump the GitOps overlay so Argo CD rolls out the new tag.
-# Tasks are resolved from the cluster (OpenShift Pipelines ships git-clone
-# and buildah as cluster resolver tasks).
+# Buildah -> promote. Every build pushes :latest (which the Deployments run)
+# and, when a version is given, tags the same manifest with it via `oc tag`
+# for traceability/rollback, then restarts the Deployments so the new :latest
+# rolls out. Tasks are resolved from the cluster (OpenShift Pipelines ships
+# git-clone and buildah as cluster resolver tasks).
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
   name: budgeit-build
   namespace: budge-it-ci
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    # The Pipeline CRD is installed by the wave -1 Subscription during this
+    # same sync; skip the pre-sync dry-run so the unknown kind doesn't abort
+    # the whole operation (same pattern as the PostgresCluster).
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   params:
     - name: git-url
@@ -18,9 +26,12 @@ spec:
     - name: image-registry
       type: string
       default: image-registry.openshift-image-registry.svc:5000/budge-it
-    - name: image-tag
+    - name: version
       type: string
       default: latest
+      description: >-
+        Extra tag to stamp on both images alongside :latest (the webhook
+        passes the commit SHA). "latest" means no extra tag.
   workspaces:
     - name: source
   tasks:
@@ -74,11 +85,15 @@ spec:
             value: openshift-pipelines
       params:
         - name: IMAGE
-          value: $(params.image-registry)/budgeit-backend:$(params.image-tag)
+          value: $(params.image-registry)/budgeit-backend:latest
         - name: CONTEXT
           value: backend
         - name: DOCKERFILE
           value: backend/Dockerfile
+        # The internal registry serves a service-CA cert that isn't in the
+        # build container's trust store.
+        - name: TLS_VERIFY
+          value: "false"
       workspaces:
         - name: source
           workspace: source
@@ -96,41 +111,35 @@ spec:
             value: openshift-pipelines
       params:
         - name: IMAGE
-          value: $(params.image-registry)/budgeit-frontend:$(params.image-tag)
+          value: $(params.image-registry)/budgeit-frontend:latest
         - name: CONTEXT
           value: frontend
         - name: DOCKERFILE
           value: frontend/Dockerfile
+        - name: TLS_VERIFY
+          value: "false"
       workspaces:
         - name: source
           workspace: source
 
-    - name: update-gitops
+    - name: promote
       runAfter: [build-backend, build-frontend]
-      workspaces:
-        - name: source
-          workspace: source
       params:
-        - name: image-registry
-          value: $(params.image-registry)
-        - name: image-tag
-          value: $(params.image-tag)
+        - name: version
+          value: $(params.version)
       taskSpec:
         params:
-          - name: image-registry
-          - name: image-tag
-        workspaces:
-          - name: source
+          - name: version
         steps:
-          - name: kustomize-set-image
-            image: registry.k8s.io/kustomize/kustomize:v5.4.3
-            workingDir: $(workspaces.source.path)/deploy/overlays/prod
+          - name: tag-and-rollout
+            # Every cluster ships the cli imagestream in the openshift
+            # namespace, pullable by all authenticated serviceaccounts.
+            image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
             script: |
               #!/bin/sh
               set -e
-              kustomize edit set image \
-                "$(params.image-registry)/budgeit-backend:$(params.image-tag)" \
-                "$(params.image-registry)/budgeit-frontend:$(params.image-tag)"
-              echo "Prod overlay now points at tag $(params.image-tag)."
-              echo "Commit and push this change so Argo CD syncs it, e.g. via a"
-              echo "git-cli task with push credentials."
+              if [ "$(params.version)" != "latest" ]; then
+                oc tag budge-it/budgeit-backend:latest "budge-it/budgeit-backend:$(params.version)"
+                oc tag budge-it/budgeit-frontend:latest "budge-it/budgeit-frontend:$(params.version)"
+              fi
+              oc rollout restart deployment/budgeit-backend deployment/budgeit-frontend -n budge-it

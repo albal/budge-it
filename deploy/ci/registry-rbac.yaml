@@ -1,0 +1,56 @@
+# Buildah pushes to the internal registry under the budge-it namespace
+# (image-registry.openshift-image-registry.svc:5000/budge-it/...), so the CI
+# pipeline serviceaccount needs image-builder rights over there. The
+# `pipeline` SA itself is created in budge-it-ci automatically by the
+# OpenShift Pipelines operator.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: budgeit-ci-image-builder
+  namespace: budge-it
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:image-builder
+subjects:
+  - kind: ServiceAccount
+    name: pipeline
+    namespace: budge-it-ci
+---
+# The pipeline's promote task stamps the version tag with `oc tag` and
+# restarts the Deployments so the freshly pushed :latest rolls out.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: budgeit-ci-promote
+  namespace: budge-it
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+rules:
+  - apiGroups: [image.openshift.io]
+    resources: [imagestreams]
+    verbs: [get, list]
+  - apiGroups: [image.openshift.io]
+    resources: [imagestreamtags]
+    verbs: [get, create, update]
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [get, list, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: budgeit-ci-promote
+  namespace: budge-it
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: budgeit-ci-promote
+subjects:
+  - kind: ServiceAccount
+    name: pipeline
+    namespace: budge-it-ci
