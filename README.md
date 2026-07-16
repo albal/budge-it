@@ -64,8 +64,13 @@ the upload zone. Run tests with `make test`.
 ## Deploying to OpenShift
 
 Prerequisites (installed cluster-wide, outside this repo's GitOps scope):
-OpenShift Data Foundation (with the Multi-Cloud Object Gateway), OpenShift
-GitOps, and user-workload monitoring enabled for the ServiceMonitor. ODF is
+OpenShift Data Foundation (with the Multi-Cloud Object Gateway) **with one
+StorageClass marked as the cluster default** (`oc patch storageclass
+ocs-storagecluster-ceph-rbd -p '{"metadata":{"annotations":{"storageclass.
+kubernetes.io/is-default-class":"true"}}}'` — operator-owned PVCs such as
+Tekton Results' internal Postgres request no explicit class and hang
+Pending forever without it), OpenShift GitOps, and user-workload monitoring
+enabled for the ServiceMonitor. ODF is
 cluster-wide shared storage, so it's kept out of `deploy/` deliberately —
 the main Application runs `prune: true`, and owning a shared platform
 operator there would risk Argo deleting it for everyone if the app were
