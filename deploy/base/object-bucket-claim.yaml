@@ -8,6 +8,8 @@ apiVersion: objectbucket.io/v1alpha1
 kind: ObjectBucketClaim
 metadata:
   name: budgeit-uploads
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
 spec:
   generateBucketName: budgeit-uploads
   storageClassName: openshift-storage.noobaa.io

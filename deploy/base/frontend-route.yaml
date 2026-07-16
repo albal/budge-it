@@ -2,6 +2,8 @@ apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
   name: budgeit
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
   labels:
     app: budgeit-frontend
 spec:

@@ -1,0 +1,34 @@
+# OLM-managed install of Crunchy Postgres for Kubernetes, scoped to this
+# namespace only (own-namespace install mode). Argo CD owns this operator's
+# lifecycle so the PostgresCluster CRD is guaranteed to exist before the
+# PostgresCluster CR (wave 0) is applied — see sync-wave annotations.
+#
+# OpenShift Data Foundation is deliberately NOT installed here: it's a
+# cluster-wide storage platform shared by every namespace, and this
+# Application runs with `prune: true` — owning ODF here would risk Argo
+# deleting the cluster's shared storage backend if this app were ever
+# removed. It stays a documented external prerequisite (see README).
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: budgeit-operators
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  targetNamespaces:
+    - budge-it
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: crunchy-postgres-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  # Confirm channel/package name against the cluster's OperatorHub catalog;
+  # Crunchy renames channels (e.g. v5) across major PGO versions.
+  channel: v5
+  name: crunchy-postgres-operator
+  source: certified-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic

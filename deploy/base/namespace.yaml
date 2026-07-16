@@ -2,6 +2,8 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: budge-it
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
   labels:
     # Enables user-workload monitoring scrape targets in this namespace
     openshift.io/cluster-monitoring: "false"

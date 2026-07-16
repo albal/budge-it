@@ -22,6 +22,18 @@ spec:
     syncOptions:
       - CreateNamespace=false # the base manifests own the Namespace
       - PruneLast=true
+    # Resources are ordered into phases via argocd.argoproj.io/sync-wave
+    # (namespace -> operator install -> config/secrets -> operator-managed
+    # CRs -> workloads). The Crunchy operator's CRD isn't Established the
+    # instant its Subscription is applied, so retry with backoff lets the
+    # PostgresCluster wave self-heal once OLM finishes installing it instead
+    # of leaving the whole sync stuck on the first failed attempt.
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
   ignoreDifferences:
     # The HPA owns backend replicas; don't fight it.
     - group: apps

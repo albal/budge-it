@@ -41,7 +41,7 @@ flowchart LR
 |---|---|
 | `backend/` | Go (Gin) API: uploads, async extraction workers, categorization engine, analytics, Prometheus metrics. UBI-based Dockerfile. |
 | `frontend/` | React + Vite dashboard: drag-and-drop upload with progress, KPI tiles, monthly in/out chart, category breakdown, transaction table with persistent re-categorization. UBI nginx Dockerfile. |
-| `deploy/base/` | Kustomize base: `PostgresCluster` (Crunchy), `ObjectBucketClaim` (ODF/NooBaa), Deployments, Services, edge-TLS Routes, ServiceAccounts, ConfigMap/Secret, NetworkPolicies, HPA, ServiceMonitor. |
+| `deploy/base/` | Kustomize base: Crunchy Postgres Operator install (OLM `OperatorGroup`/`Subscription`), `PostgresCluster`, `ObjectBucketClaim` (ODF/NooBaa), Deployments, Services, edge-TLS Routes, ServiceAccounts, ConfigMap/Secret, NetworkPolicies, HPA, ServiceMonitor. |
 | `deploy/overlays/{dev,prod}` | Environment overlays (dev: single replicas, no HA). |
 | `tekton/` | OpenShift Pipelines: clone → test → Buildah image builds → GitOps tag bump, plus webhook triggers. |
 | `argocd/` | OpenShift GitOps `Application` syncing `deploy/overlays/prod`. |
@@ -62,10 +62,17 @@ the upload zone. Run tests with `make test`.
 
 ## Deploying to OpenShift
 
-Prerequisites (operators installed cluster-wide):
-Crunchy Postgres for Kubernetes, OpenShift Data Foundation (with the
-Multi-Cloud Object Gateway), OpenShift Pipelines, OpenShift GitOps, and
-user-workload monitoring enabled for the ServiceMonitor.
+Prerequisites (operators installed cluster-wide, outside this app's GitOps
+scope): OpenShift Data Foundation (with the Multi-Cloud Object Gateway),
+OpenShift Pipelines, OpenShift GitOps, and user-workload monitoring enabled
+for the ServiceMonitor. ODF is cluster-wide shared storage, so it's kept out
+of `deploy/` deliberately — this Application runs `prune: true`, and owning a
+shared platform operator there would risk Argo deleting it for everyone if
+the app were ever removed.
+
+The **Crunchy Postgres Operator**, by contrast, is scoped to just this
+namespace, so it *is* GitOps-managed (`deploy/base/operators.yaml`) — no
+manual install step needed.
 
 1. **Manifests** — render or apply directly:
    ```sh
@@ -75,6 +82,15 @@ user-workload monitoring enabled for the ServiceMonitor.
 2. **GitOps** — point `argocd/application.yaml` at your fork and apply it to
    the `openshift-gitops` namespace. Argo CD then owns the `budge-it`
    namespace with automated sync/prune/self-heal.
+
+   Resources are staged into phases with `argocd.argoproj.io/sync-wave`
+   annotations so dependencies land before what needs them:
+   `-2` Namespace → `-1` ServiceAccounts/ConfigMap/Secret/operator install →
+   `0` `PostgresCluster`/`ObjectBucketClaim` (need the operator's CRD and the
+   ODF storage class) → `1` Deployments/Services/Routes/HPA/NetworkPolicies/
+   ServiceMonitor (need the secrets the operator and OBC generate). Argo's
+   configured `retry`/`backoff` lets a wave that fails while OLM is still
+   installing the operator's CRD self-heal on its own instead of stalling.
 3. **CI** — create a `budge-it-ci` namespace, apply `tekton/pipeline.yaml`
    and `tekton/triggers.yaml`, and point a GitHub push webhook at the
    EventListener Route. Builds run tests, produce both UBI images with

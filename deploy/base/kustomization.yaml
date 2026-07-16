@@ -8,6 +8,7 @@ resources:
   - serviceaccounts.yaml
   - configmap.yaml
   - secret.yaml
+  - operators.yaml
   - postgres-cluster.yaml
   - object-bucket-claim.yaml
   - backend-deployment.yaml
