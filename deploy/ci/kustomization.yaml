@@ -7,3 +7,4 @@ resources:
   - triggers.yaml
   - eventlistener-route.yaml
   - registry-rbac.yaml
+  - commit-poller.yaml

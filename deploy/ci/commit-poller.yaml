@@ -1,0 +1,62 @@
+# GitHub can't deliver webhooks here — the cluster's routes resolve to a
+# LAN address — so this CronJob polls for new commits on main instead
+# (outbound-only, NAT-friendly) and feeds the same EventListener the
+# webhook would have hit. The last-built SHA lives in the last-built
+# ConfigMap; when it differs from GitHub's HEAD, the poller POSTs a
+# push-shaped payload to el-budgeit and records the new SHA. On the very
+# first run the ConfigMap doesn't exist, which doubles as the bootstrap
+# for the initial build.
+# Runs as the pipeline SA: the operator's edit rolebinding covers the
+# ConfigMap writes.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: budgeit-commit-poller
+  namespace: budge-it-ci
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  schedule: "*/2 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 120
+      template:
+        spec:
+          serviceAccountName: pipeline
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: poll
+              image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: [ALL]
+              command: [/bin/sh, -c]
+              args:
+                - |
+                  set -eu
+                  REPO_URL=https://github.com/albal/budge-it.git
+                  API=https://api.github.com/repos/albal/budge-it/commits/main
+                  SHA=$(curl -sf "$API" | sed -n 's/.*"sha": *"\([0-9a-f]\{40\}\)".*/\1/p' | head -1)
+                  if [ -z "$SHA" ]; then
+                    echo "could not determine HEAD of main (GitHub API unreachable or rate-limited)" >&2
+                    exit 1
+                  fi
+                  LAST=$(oc get configmap last-built -o jsonpath='{.data.sha}' 2>/dev/null || true)
+                  if [ "$SHA" = "$LAST" ]; then
+                    echo "up to date at $SHA"
+                    exit 0
+                  fi
+                  echo "new commit $SHA (last built: ${LAST:-none}) — triggering build"
+                  curl -sf -X POST http://el-budgeit.budge-it-ci.svc.cluster.local:8080 \
+                    -H 'Content-Type: application/json' \
+                    -d "{\"after\":\"$SHA\",\"repository\":{\"clone_url\":\"$REPO_URL\"}}"
+                  oc create configmap last-built --from-literal=sha="$SHA" \
+                    --dry-run=client -o yaml | oc apply -f -

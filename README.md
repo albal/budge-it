@@ -98,10 +98,14 @@ uninstall Tekton for the rest of the cluster.
 3. **CI** — apply `argocd/ci-application.yaml` to `openshift-gitops`. It
    installs the OpenShift Pipelines operator (OLM Subscription in
    `openshift-operators`) and owns the `budge-it-ci` namespace with the
-   build Pipeline, Triggers, EventListener Route, and a RoleBinding letting
-   the CI `pipeline` serviceaccount push images into the `budge-it` registry
-   namespace. Point a GitHub push webhook (content type `application/json`)
-   at the `budgeit-ci-webhook` Route, or kick a build by hand with
+   build Pipeline, Triggers, EventListener, and a RoleBinding letting the
+   CI `pipeline` serviceaccount push images into the `budge-it` registry
+   namespace. Builds are triggered by the `budgeit-commit-poller` CronJob,
+   which polls GitHub for new commits on main every two minutes and feeds
+   the EventListener — polling because this cluster sits on a private LAN
+   that GitHub's webhook servers can't reach. (If your cluster is publicly
+   reachable, point a GitHub push webhook at the `budgeit-ci-webhook` Route
+   instead and delete the poller.) A build can also be kicked by hand with
    `oc create -f tekton/pipelinerun-example.yaml`. Builds run tests, produce
    both UBI images with Buildah pushed as `:latest` plus the commit-SHA tag,
    and restart the Deployments so the new images roll out.
