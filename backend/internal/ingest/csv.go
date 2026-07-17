@@ -67,9 +67,21 @@ func cleanAmount(s string) (float64, bool, error) {
 	return v, neg, nil
 }
 
+// parseFlag reads a direction flag cell ("D", "DR", "Debit", "C", "CR",
+// "Credit"); ok is false for anything else so callers fall back to the sign.
+func parseFlag(s string) (models.Direction, bool) {
+	switch strings.ToUpper(strings.TrimSpace(s)) {
+	case "D", "DR", "DBIT", "DEBIT":
+		return models.Debit, true
+	case "C", "CR", "CRDT", "CREDIT":
+		return models.Credit, true
+	}
+	return "", false
+}
+
 // ParseCSV maps statement CSVs onto transactions. It detects columns by
-// header name and supports both single signed Amount columns and separate
-// Debit / Credit columns.
+// header name and supports single signed Amount columns, separate Debit /
+// Credit columns, and card-style Amount + Debit/Credit Flag pairs.
 func ParseCSV(r io.Reader) ([]ParsedTxn, error) {
 	reader := csv.NewReader(r)
 	reader.FieldsPerRecord = -1
@@ -99,9 +111,12 @@ func ParseCSV(r io.Reader) ([]ParsedTxn, error) {
 
 	dateIdx := find("date", "transaction date", "posted date", "value date")
 	descIdx := find("description", "merchant", "details", "narrative", "memo", "payee", "transaction description")
-	amtIdx := find("amount", "value", "transaction amount")
+	amtIdx := find("amount", "value", "transaction amount", "billing amount", "billed amount")
 	debitIdx := find("debit", "debit amount", "money out", "paid out", "withdrawal")
 	creditIdx := find("credit", "credit amount", "money in", "paid in", "deposit")
+	// Card statements often pair a positive amount with a separate direction
+	// flag column (e.g. "D"/"C") instead of a signed amount.
+	flagIdx := find("debit/credit flag", "debit / credit flag", "debit/credit", "dr/cr indicator", "dr/cr")
 
 	if dateIdx < 0 || descIdx < 0 || (amtIdx < 0 && debitIdx < 0 && creditIdx < 0) {
 		return nil, fmt.Errorf("CSV must have Date, Description and Amount (or Debit/Credit) columns; got headers %v", header)
@@ -137,7 +152,9 @@ func ParseCSV(r io.Reader) ([]ParsedTxn, error) {
 				continue
 			}
 			amount = v
-			if neg {
+			if flag, ok := parseFlag(get(flagIdx)); ok {
+				dir = flag // an explicit flag beats the amount's sign
+			} else if neg {
 				dir = models.Debit
 			} else {
 				dir = models.Credit

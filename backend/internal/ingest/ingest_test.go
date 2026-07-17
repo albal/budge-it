@@ -31,6 +31,26 @@ func TestParseCSVSignedAmount(t *testing.T) {
 	}
 }
 
+func TestParseCSVCardBillingAmountWithFlag(t *testing.T) {
+	csvData := `Transaction Date,Posting Date,Billing Amount,Merchant,Merchant City,Merchant County,Merchant Postal Code,Reference Number,Debit/Credit Flag,SICMCC Code
+15/03/2024,16/03/2024,45.20,TESCO STORES 3297,LONDON,GREATER LONDON,SW1A 1AA,74123456789,D,5411
+17/03/2024,18/03/2024,120.00,PAYMENT RECEIVED,,,,74123456790,C,0000`
+
+	txns, err := ParseCSV(strings.NewReader(csvData))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(txns) != 2 {
+		t.Fatalf("got %d transactions, want 2", len(txns))
+	}
+	if txns[0].Direction != models.Debit || txns[0].Amount != 45.20 || txns[0].Description != "TESCO STORES 3297" {
+		t.Errorf("row 0 (positive amount, D flag): %+v", txns[0])
+	}
+	if txns[1].Direction != models.Credit || txns[1].Amount != 120.00 {
+		t.Errorf("row 1 (C flag): %+v", txns[1])
+	}
+}
+
 func TestParseCSVDebitCreditColumns(t *testing.T) {
 	csvData := `Date,Description,Money Out,Money In
 15/03/2024,COSTA COFFEE,£3.50,
