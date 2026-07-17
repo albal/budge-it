@@ -5,6 +5,7 @@ resources:
   - image-registry.yaml
   - namespace.yaml
   - subscription.yaml
+  - console-plugins.yaml
   - pipeline.yaml
   - triggers.yaml
   - eventlistener-route.yaml

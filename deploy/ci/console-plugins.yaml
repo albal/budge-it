@@ -1,0 +1,21 @@
+# Dynamic console plugins are opt-in: each operator installs its plugin but
+# the console only loads the ones listed here. pipelines-console-plugin gives
+# the console its Pipelines section (PipelineRuns, task graphs, logs) for the
+# CI in budge-it-ci. This list is authoritative — a plugin enabled by hand
+# (or by a newly installed operator) is reverted on the next sync unless it
+# is added here. The other entries preserve what was already enabled on the
+# cluster: GitOps, monitoring, networking, and ODF.
+apiVersion: operator.openshift.io/v1
+kind: Console
+metadata:
+  name: cluster
+  annotations:
+    # Wave 0: the Subscription in wave -1 installs the plugin this enables.
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  plugins:
+    - gitops-plugin
+    - monitoring-plugin
+    - networking-console-plugin
+    - odf-console
+    - pipelines-console-plugin
