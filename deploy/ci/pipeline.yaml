@@ -95,8 +95,10 @@ spec:
         - name: TLS_VERIFY
           value: "false"
         # Stamp the binary with the commit so /api/v1/version reports it.
+        # (GIT_COMMIT, not VERSION: the toolset image's ENV VERSION would
+        # shadow a VERSION build arg.)
         - name: BUILD_EXTRA_ARGS
-          value: --build-arg VERSION=$(params.version)
+          value: --build-arg GIT_COMMIT=$(params.version)
       workspaces:
         - name: source
           workspace: source
