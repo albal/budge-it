@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  addCategory,
   clearTransactions,
   fetchCategories,
   fetchCategoryBreakdown,
@@ -167,7 +168,15 @@ export default function App() {
             </button>
           )}
         </div>
-        <TransactionTable txns={txns} categories={categories} onChanged={() => void refreshData()} />
+        <TransactionTable
+          txns={txns}
+          categories={categories}
+          onChanged={() => void refreshData()}
+          onAddCategory={async (name) => {
+            await addCategory(name);
+            setCategories(await fetchCategories());
+          }}
+        />
       </div>
 
       {uploads.length > 0 && (

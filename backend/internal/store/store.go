@@ -231,6 +231,38 @@ func (s *Store) SetTransactionsCategory(ctx context.Context, userID string, ids 
 	return err
 }
 
+// --- custom categories ---
+
+func (s *Store) ListCustomCategories(ctx context.Context, userID string) ([]string, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT name FROM custom_categories WHERE user_id = $1 ORDER BY lower(name)`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	names := []string{}
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err != nil {
+			return nil, err
+		}
+		names = append(names, n)
+	}
+	return names, rows.Err()
+}
+
+// AddCustomCategory inserts a category; inserted is false when a category of
+// that name (case-insensitively) already exists.
+func (s *Store) AddCustomCategory(ctx context.Context, userID, name string) (inserted bool, err error) {
+	tag, err := s.pool.Exec(ctx, `
+		INSERT INTO custom_categories (user_id, name) VALUES ($1, $2)
+		ON CONFLICT (user_id, lower(name)) DO NOTHING`, userID, name)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
 // --- category rules ---
 
 func (s *Store) UpsertRule(ctx context.Context, userID, pattern, category string) error {

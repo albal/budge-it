@@ -24,6 +24,17 @@ export const fetchUploads = () => getJSON<Upload[]>("/uploads");
 export const fetchCategories = () => getJSON<string[]>("/categories");
 export const fetchVersion = () => getJSON<{ commit: string }>("/version");
 
+/** Creates a custom category; rejects (409) names that already exist. */
+export async function addCategory(name: string): Promise<void> {
+  const res = await fetch(`${BASE}/categories`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (res.status === 409) throw new Error("that category already exists");
+  if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+}
+
 /** Deletes all uploads and their transactions; category rules survive. */
 export async function clearTransactions(): Promise<void> {
   const res = await fetch(`${BASE}/transactions`, { method: "DELETE" });

@@ -72,6 +72,7 @@ func (s *Server) Router() *gin.Engine {
 		v1.PATCH("/transactions/:id", s.recategorize)
 		v1.GET("/version", s.version)
 		v1.GET("/categories", s.listCategories)
+		v1.POST("/categories", s.addCategory)
 		v1.GET("/rules", s.listRules)
 		v1.GET("/analytics/summary", s.summary)
 		v1.GET("/analytics/categories", s.categoryBreakdown)
@@ -177,7 +178,12 @@ func (s *Server) recategorize(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if !slices.Contains(categorize.Categories, req.Category) {
+	cats, err := s.allCategories(c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if !slices.Contains(cats, req.Category) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "unknown category"})
 		return
 	}
@@ -220,8 +226,53 @@ func (s *Server) version(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"commit": s.cfg.Version})
 }
 
+// allCategories is the built-in list plus the user's custom categories.
+func (s *Server) allCategories(c *gin.Context) ([]string, error) {
+	custom, err := s.store.ListCustomCategories(c.Request.Context(), userID(c))
+	if err != nil {
+		return nil, err
+	}
+	return append(append([]string{}, categorize.Categories...), custom...), nil
+}
+
 func (s *Server) listCategories(c *gin.Context) {
-	c.JSON(http.StatusOK, categorize.Categories)
+	cats, err := s.allCategories(c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, cats)
+}
+
+func (s *Server) addCategory(c *gin.Context) {
+	var req struct {
+		Name string `json:"name" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" || len(name) > 40 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "category name must be 1-40 characters"})
+		return
+	}
+	for _, b := range categorize.Categories {
+		if strings.EqualFold(b, name) {
+			c.JSON(http.StatusConflict, gin.H{"error": "category already exists"})
+			return
+		}
+	}
+	inserted, err := s.store.AddCustomCategory(c.Request.Context(), userID(c), name)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if !inserted {
+		c.JSON(http.StatusConflict, gin.H{"error": "category already exists"})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"name": name})
 }
 
 func (s *Server) listRules(c *gin.Context) {
