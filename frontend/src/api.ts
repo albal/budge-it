@@ -22,6 +22,13 @@ export const fetchTransactions = (month: string, category: string) => {
 };
 export const fetchUploads = () => getJSON<Upload[]>("/uploads");
 export const fetchCategories = () => getJSON<string[]>("/categories");
+export const fetchVersion = () => getJSON<{ commit: string }>("/version");
+
+/** Deletes all uploads and their transactions; category rules survive. */
+export async function clearTransactions(): Promise<void> {
+  const res = await fetch(`${BASE}/transactions`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+}
 
 export async function recategorize(
   id: string,

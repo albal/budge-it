@@ -159,6 +159,26 @@ button {
 button {
   cursor: pointer;
 }
+.card-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.danger-btn {
+  color: var(--delta-bad);
+  border-color: color-mix(in srgb, var(--delta-bad) 45%, var(--baseline));
+  font-size: 13px;
+}
+.danger-btn:hover {
+  background: color-mix(in srgb, var(--delta-bad) 8%, var(--surface-1));
+}
+.footer {
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 16px 0 8px;
+}
 
 /* --- dropzone --- */
 .dropzone {

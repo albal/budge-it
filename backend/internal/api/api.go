@@ -68,7 +68,9 @@ func (s *Server) Router() *gin.Engine {
 		v1.GET("/uploads", s.listUploads)
 		v1.GET("/uploads/:id", s.getUpload)
 		v1.GET("/transactions", s.listTransactions)
+		v1.DELETE("/transactions", s.clearTransactions)
 		v1.PATCH("/transactions/:id", s.recategorize)
+		v1.GET("/version", s.version)
 		v1.GET("/categories", s.listCategories)
 		v1.GET("/rules", s.listRules)
 		v1.GET("/analytics/summary", s.summary)
@@ -201,6 +203,21 @@ func (s *Server) recategorize(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"id": c.Param("id"), "category": req.Category, "ruleSaved": true})
+}
+
+// clearTransactions wipes the user's uploads; transactions go with them via
+// ON DELETE CASCADE. Category rules survive so re-uploaded statements come
+// back with the user's categorization intact.
+func (s *Server) clearTransactions(c *gin.Context) {
+	if err := s.store.ClearTransactions(c.Request.Context(), userID(c)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"cleared": true})
+}
+
+func (s *Server) version(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"commit": s.cfg.Version})
 }
 
 func (s *Server) listCategories(c *gin.Context) {

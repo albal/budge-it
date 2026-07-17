@@ -21,6 +21,9 @@ import (
 	"github.com/budge-it/backend/internal/store"
 )
 
+// version is stamped at build time: -ldflags "-X main.version=<commit>".
+var version = "dev"
+
 func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 	gin.SetMode(gin.ReleaseMode)
@@ -30,6 +33,7 @@ func main() {
 		slog.Error("configuration", "error", err)
 		os.Exit(1)
 	}
+	cfg.Version = version
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

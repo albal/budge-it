@@ -192,6 +192,13 @@ func (s *Store) RecategorizeByMerchant(ctx context.Context, userID, pattern, cat
 	return err
 }
 
+// ClearTransactions removes all the user's uploads; their transactions are
+// deleted by the ON DELETE CASCADE on transactions.upload_id. Rules remain.
+func (s *Store) ClearTransactions(ctx context.Context, userID string) error {
+	_, err := s.pool.Exec(ctx, `DELETE FROM uploads WHERE user_id = $1`, userID)
+	return err
+}
+
 // --- transfers ---
 
 // TransferCandidates returns every transaction of the user in the shape the

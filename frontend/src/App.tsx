@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  clearTransactions,
   fetchCategories,
   fetchCategoryBreakdown,
   fetchSummary,
   fetchTransactions,
   fetchUploads,
+  fetchVersion,
 } from "./api";
 import type { CategoryTotal, Summary, Transaction, Upload } from "./types";
 import CategoryChart from "./components/CategoryChart";
@@ -22,6 +24,7 @@ export default function App() {
   const [month, setMonth] = useState("");
   const [category, setCategory] = useState("");
   const [error, setError] = useState("");
+  const [commit, setCommit] = useState("");
   const pollRef = useRef<number | null>(null);
 
   const refreshData = useCallback(async () => {
@@ -66,6 +69,7 @@ export default function App() {
 
   useEffect(() => {
     fetchCategories().then(setCategories).catch(() => setCategories([]));
+    fetchVersion().then((v) => setCommit(v.commit)).catch(() => setCommit(""));
     void pollUploads();
     return () => {
       if (pollRef.current !== null) window.clearInterval(pollRef.current);
@@ -144,7 +148,25 @@ export default function App() {
       </div>
 
       <div className="card">
-        <h2>Transactions</h2>
+        <div className="card-header-row">
+          <h2>Transactions</h2>
+          {txns.length > 0 && (
+            <button
+              className="danger-btn"
+              onClick={() => {
+                if (!window.confirm(
+                  "Delete ALL transactions and upload history? Your category rules are kept.",
+                )) return;
+                clearTransactions()
+                  .then(() => void refreshData())
+                  .then(() => void pollUploads())
+                  .catch((err) => setError((err as Error).message));
+              }}
+            >
+              Clear transactions
+            </button>
+          )}
+        </div>
         <TransactionTable txns={txns} categories={categories} onChanged={() => void refreshData()} />
       </div>
 
@@ -167,6 +189,10 @@ export default function App() {
           ))}
         </div>
       )}
+
+      <footer className="footer">
+        Budge-it{commit ? ` · build ${commit.slice(0, 7)}` : ""}
+      </footer>
     </div>
   );
 }

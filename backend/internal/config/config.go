@@ -32,6 +32,10 @@ type Config struct {
 
 	MaxUploadBytes int64
 	Workers        int
+
+	// Version is the git commit the binary was built from, injected by main
+	// from an ldflags variable (not an environment variable).
+	Version string
 }
 
 func Load() (*Config, error) {

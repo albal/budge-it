@@ -94,6 +94,9 @@ spec:
         # build container's trust store.
         - name: TLS_VERIFY
           value: "false"
+        # Stamp the binary with the commit so /api/v1/version reports it.
+        - name: BUILD_EXTRA_ARGS
+          value: --build-arg VERSION=$(params.version)
       workspaces:
         - name: source
           workspace: source
