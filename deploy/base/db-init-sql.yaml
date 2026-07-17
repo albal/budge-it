@@ -1,0 +1,14 @@
+# Run once by the operator at initial cluster bootstrap. Postgres 15+ no
+# longer lets non-owners create objects in the public schema, so hand the
+# database and its public schema to the application user the operator creates.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: budgeit-db-init-sql
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+data:
+  init.sql: |
+    ALTER DATABASE budgeit OWNER TO budgeit;
+    \c budgeit
+    ALTER SCHEMA public OWNER TO budgeit;

@@ -37,6 +37,11 @@ spec:
     - name: budgeit
       databases:
         - budgeit
+  # Postgres 15+ blocks non-owners from creating objects in the public
+  # schema; this init SQL hands the database and schema to the app user.
+  databaseInitSQL:
+    name: budgeit-db-init-sql
+    key: init.sql
   backups:
     pgbackrest:
       repos:

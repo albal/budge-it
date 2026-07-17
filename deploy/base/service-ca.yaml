@@ -1,0 +1,12 @@
+# The service-ca operator injects the cluster's service-serving CA bundle
+# into this ConfigMap as `service-ca.crt`. The backend trusts it so it can
+# verify the NooBaa S3 endpoint (s3.openshift-storage.svc), whose cert is
+# signed by that CA. Argo must ignore the injected data key or self-heal
+# would strip it (see ignoreDifferences in argocd/application.yaml).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: budgeit-service-ca
+  annotations:
+    service.beta.openshift.io/inject-cabundle: "true"
+    argocd.argoproj.io/sync-wave: "0"

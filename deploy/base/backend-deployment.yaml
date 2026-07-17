@@ -30,6 +30,11 @@ spec:
             - name: http
               containerPort: 8080
           env:
+            # Go replaces its root CA pool with this file. The pod only makes
+            # TLS calls to in-cluster services (NooBaa S3, Postgres), all
+            # signed by the service CA, so losing the public roots is fine.
+            - name: SSL_CERT_FILE
+              value: /etc/pki/budgeit/service-ca.crt
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -72,3 +77,11 @@ spec:
             capabilities:
               drop:
                 - ALL
+          volumeMounts:
+            - name: service-ca
+              mountPath: /etc/pki/budgeit
+              readOnly: true
+      volumes:
+        - name: service-ca
+          configMap:
+            name: budgeit-service-ca

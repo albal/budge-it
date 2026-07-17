@@ -48,3 +48,9 @@ spec:
       kind: Deployment
       jsonPointers:
         - /spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt
+    # The service-ca operator injects the CA bundle into this ConfigMap's
+    # data; the manifest deliberately ships it empty.
+    - kind: ConfigMap
+      name: budgeit-service-ca
+      jsonPointers:
+        - /data

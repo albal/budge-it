@@ -8,7 +8,9 @@ resources:
   - serviceaccounts.yaml
   - configmap.yaml
   - secret.yaml
+  - service-ca.yaml
   - operators.yaml
+  - db-init-sql.yaml
   - postgres-cluster.yaml
   - object-bucket-claim.yaml
   - backend-deployment.yaml
