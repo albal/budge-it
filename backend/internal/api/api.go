@@ -163,8 +163,7 @@ func (s *Server) listTransactions(c *gin.Context) {
 }
 
 type recategorizeReq struct {
-	Category   string `json:"category" binding:"required"`
-	CreateRule bool   `json:"createRule"`
+	Category string `json:"category" binding:"required"`
 	// Pattern optionally narrows the persisted rule; defaults to the
 	// transaction's normalized merchant.
 	Pattern string `json:"pattern"`
@@ -186,21 +185,22 @@ func (s *Server) recategorize(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "transaction not found"})
 		return
 	}
-	if req.CreateRule {
-		pattern := categorize.Normalize(req.Pattern)
-		if pattern == "" {
-			pattern = merchant
-		}
-		if err := s.store.UpsertRule(c.Request.Context(), uid, pattern, req.Category); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "saving rule: " + err.Error()})
-			return
-		}
-		if err := s.store.ApplyRuleToUncategorized(c.Request.Context(), uid, pattern, req.Category); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "applying rule: " + err.Error()})
-			return
-		}
+	// A manual re-categorization is a statement about the merchant, not just
+	// this one line: persist it as a rule (so future ingests use it) and
+	// retag every existing transaction with the same merchant.
+	pattern := categorize.Normalize(req.Pattern)
+	if pattern == "" {
+		pattern = merchant
 	}
-	c.JSON(http.StatusOK, gin.H{"id": c.Param("id"), "category": req.Category, "ruleSaved": req.CreateRule})
+	if err := s.store.UpsertRule(c.Request.Context(), uid, pattern, req.Category); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "saving rule: " + err.Error()})
+		return
+	}
+	if err := s.store.RecategorizeByMerchant(c.Request.Context(), uid, pattern, req.Category); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "applying rule: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"id": c.Param("id"), "category": req.Category, "ruleSaved": true})
 }
 
 func (s *Server) listCategories(c *gin.Context) {

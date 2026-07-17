@@ -30,8 +30,9 @@ export async function recategorize(
   const res = await fetch(`${BASE}/transactions/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    // Manual re-categorization persists as a user rule, per the PRD.
-    body: JSON.stringify({ category, createRule: true }),
+    // The backend persists every manual re-categorization as a user rule and
+    // retags all same-merchant transactions.
+    body: JSON.stringify({ category }),
   });
   if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
 }

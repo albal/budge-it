@@ -81,6 +81,14 @@ export default function App() {
     (u) => u.status === "pending" || u.status === "processing",
   ).length;
 
+  // With a month selected the KPI tiles summarise that month; otherwise all time.
+  const monthFlow = month
+    ? summary?.months.find((m) => m.month === month)
+    : undefined;
+  const inflow = monthFlow ? monthFlow.inflow : summary?.totalInflow ?? 0;
+  const outflow = monthFlow ? monthFlow.outflow : summary?.totalOutflow ?? 0;
+  const kpiSuffix = month ? ` — ${month}` : "";
+
   return (
     <div className="container">
       <header className="topbar">
@@ -102,9 +110,9 @@ export default function App() {
       )}
 
       <div className="kpi-row">
-        <StatTile label="Total money in" value={summary?.totalInflow ?? 0} />
-        <StatTile label="Total money out" value={summary?.totalOutflow ?? 0} />
-        <StatTile label="Net" value={summary?.net ?? 0} signed />
+        <StatTile label={`Money in${kpiSuffix}`} value={inflow} />
+        <StatTile label={`Money out${kpiSuffix}`} value={outflow} />
+        <StatTile label={`Net${kpiSuffix}`} value={inflow - outflow} signed />
       </div>
 
       <div className="filter-row">

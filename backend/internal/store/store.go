@@ -182,11 +182,12 @@ func (s *Store) RecategorizeTransaction(ctx context.Context, userID, id, categor
 	return merchant, err
 }
 
-// ApplyRuleToUncategorized retro-tags existing transactions that match a new rule.
-func (s *Store) ApplyRuleToUncategorized(ctx context.Context, userID, pattern, category string) error {
+// RecategorizeByMerchant retags every transaction whose merchant matches the
+// pattern — same contains-semantics the rule engine applies at ingest.
+func (s *Store) RecategorizeByMerchant(ctx context.Context, userID, pattern, category string) error {
 	_, err := s.pool.Exec(ctx, `
 		UPDATE transactions SET category = $3
-		WHERE user_id = $1 AND category = 'Uncategorized' AND merchant LIKE '%' || $2 || '%'`,
+		WHERE user_id = $1 AND merchant LIKE '%' || $2 || '%'`,
 		userID, pattern, category)
 	return err
 }
