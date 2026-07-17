@@ -14,7 +14,7 @@ const Uncategorized = "Uncategorized"
 var Categories = []string{
 	"Groceries", "Dining", "Entertainment", "Utilities", "Transport",
 	"Shopping", "Health", "Housing", "Income", "Fees & Charges",
-	"Subscriptions", "Travel", "Cash", Uncategorized,
+	"Subscriptions", "Travel", "Cash", Transfers, Uncategorized,
 }
 
 // defaultKeywords maps a normalized merchant fragment to a category.
@@ -80,6 +80,9 @@ var defaultKeywords = map[string]string{
 	"HOTEL": "Travel", "HILTON": "Travel", "MARRIOTT": "Travel",
 	// Cash
 	"ATM WITHDRAWAL": "Cash", "CASH WITHDRAWAL": "Cash", "CASHPOINT": "Cash",
+	// Transfers between the user's own accounts. Statements that only name
+	// the payee ("WEST AR") are caught by the pair matcher in transfers.go.
+	"TRANSFER": Transfers, "TFR": Transfers,
 }
 
 type Rule struct {
@@ -150,11 +153,13 @@ func (e *Engine) Categorize(description string) string {
 	tokens := strings.Fields(norm)
 	for kw, cat := range defaultKeywords {
 		kwFirst := strings.Fields(kw)[0]
-		if len(kwFirst) < 4 {
-			continue // too short to fuzzy-match safely
+		// One edit in a 4-letter word is a different word ("WEST" is not a
+		// misspelling of "BEST"), so only fuzzy-match 5 letters and up.
+		if len(kwFirst) < 5 {
+			continue
 		}
 		for _, tok := range tokens {
-			if len(tok) < 4 {
+			if len(tok) < 5 {
 				continue
 			}
 			if levenshtein(tok, kwFirst) <= fuzzThreshold(kwFirst) {

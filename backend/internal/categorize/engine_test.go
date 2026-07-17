@@ -16,6 +16,9 @@ func TestCategorize(t *testing.T) {
 		{"STARBUKS COFFEE 122", "Dining"}, // fuzzy: one edit from STARBUCKS
 		{"ACME Coworking Ltd", "Housing"}, // user rule wins
 		{"ZZZ UNKNOWN VENDOR", Uncategorized},
+		{"TRANSFER TO SAVINGS", Transfers},
+		{"WEST AR", Uncategorized}, // must not fuzzy-match BEST BUY
+		{"West D T ALLAN WEST", Uncategorized},
 	}
 	for _, c := range cases {
 		if got := engine.Categorize(c.desc); got != c.want {

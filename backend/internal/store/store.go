@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/budge-it/backend/internal/categorize"
 	"github.com/budge-it/backend/internal/models"
 )
 
@@ -190,6 +191,38 @@ func (s *Store) ApplyRuleToUncategorized(ctx context.Context, userID, pattern, c
 	return err
 }
 
+// --- transfers ---
+
+// TransferCandidates returns every transaction of the user in the shape the
+// transfer pair matcher consumes.
+func (s *Store) TransferCandidates(ctx context.Context, userID string) ([]categorize.TxnRef, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, upload_id, txn_date, amount, direction, category, merchant
+		FROM transactions WHERE user_id = $1`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	refs := []categorize.TxnRef{}
+	for rows.Next() {
+		var r categorize.TxnRef
+		var direction string
+		if err := rows.Scan(&r.ID, &r.UploadID, &r.Date, &r.Amount, &direction, &r.Category, &r.Merchant); err != nil {
+			return nil, err
+		}
+		r.Credit = direction == string(models.Credit)
+		refs = append(refs, r)
+	}
+	return refs, rows.Err()
+}
+
+func (s *Store) SetTransactionsCategory(ctx context.Context, userID string, ids []string, category string) error {
+	_, err := s.pool.Exec(ctx, `
+		UPDATE transactions SET category = $3
+		WHERE user_id = $1 AND id = ANY($2)`, userID, ids, category)
+	return err
+}
+
 // --- category rules ---
 
 func (s *Store) UpsertRule(ctx context.Context, userID, pattern, category string) error {
@@ -227,8 +260,8 @@ func (s *Store) Summary(ctx context.Context, userID string) (*models.Summary, er
 		SELECT to_char(txn_date, 'YYYY-MM') AS month,
 		       COALESCE(SUM(amount) FILTER (WHERE direction = 'credit'), 0) AS inflow,
 		       COALESCE(SUM(amount) FILTER (WHERE direction = 'debit'), 0)  AS outflow
-		FROM transactions WHERE user_id = $1
-		GROUP BY 1 ORDER BY 1`, userID)
+		FROM transactions WHERE user_id = $1 AND category <> $2
+		GROUP BY 1 ORDER BY 1`, userID, categorize.Transfers)
 	if err != nil {
 		return nil, err
 	}
@@ -246,14 +279,16 @@ func (s *Store) Summary(ctx context.Context, userID string) (*models.Summary, er
 	return sum, rows.Err()
 }
 
-// CategoryBreakdown totals debit spending per category, optionally for one month.
+// CategoryBreakdown totals debit spending per category, optionally for one
+// month. Transfers move money between the user's own accounts, so they are
+// not spending and are excluded (as in Summary).
 func (s *Store) CategoryBreakdown(ctx context.Context, userID, month string) ([]models.CategoryTotal, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT category, COALESCE(SUM(amount), 0), COUNT(*)
 		FROM transactions
-		WHERE user_id = $1 AND direction = 'debit'
+		WHERE user_id = $1 AND direction = 'debit' AND category <> $3
 		  AND ($2 = '' OR to_char(txn_date, 'YYYY-MM') = $2)
-		GROUP BY category ORDER BY 2 DESC`, userID, month)
+		GROUP BY category ORDER BY 2 DESC`, userID, month, categorize.Transfers)
 	if err != nil {
 		return nil, err
 	}

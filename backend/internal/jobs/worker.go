@@ -115,6 +115,10 @@ func (q *Queue) process(ctx context.Context, uploadID string) {
 	}
 	metrics.JobsProcessed.WithLabelValues("done").Inc()
 	metrics.TransactionsExtracted.Add(float64(txnCount))
+	// Non-fatal: the upload is already done; pairing retries on next upload.
+	if err := q.markTransfers(ctx, up.UserID); err != nil {
+		slog.Warn("transfer detection", "upload", up.ID, "error", err)
+	}
 	slog.Info("processed statement", "upload", up.ID, "file", up.Filename,
 		"transactions", txnCount, "took", time.Since(start).Round(time.Millisecond))
 }
@@ -171,6 +175,42 @@ func (q *Queue) extract(ctx context.Context, up *models.Upload) (int, error) {
 		return 0, fmt.Errorf("saving transactions: %w", err)
 	}
 	return len(txns), nil
+}
+
+// markTransfers re-pairs the user's transactions after new ones arrive: a
+// debit and a credit of the same amount in different statements within a few
+// days of each other are the two sides of a transfer between the user's own
+// accounts, not income or spending.
+func (q *Queue) markTransfers(ctx context.Context, userID string) error {
+	cands, err := q.store.TransferCandidates(ctx, userID)
+	if err != nil {
+		return err
+	}
+	rules, err := q.store.ListRules(ctx, userID)
+	if err != nil {
+		return err
+	}
+	engineRules := make([]categorize.Rule, 0, len(rules))
+	for _, r := range rules {
+		engineRules = append(engineRules, categorize.Rule{
+			Pattern: categorize.Normalize(r.Pattern), Category: r.Category,
+		})
+	}
+	eligible := cands[:0]
+	for _, c := range cands {
+		if !c.RuledByUser(engineRules) {
+			eligible = append(eligible, c)
+		}
+	}
+	ids := categorize.MatchTransfers(eligible)
+	if len(ids) == 0 {
+		return nil
+	}
+	if err := q.store.SetTransactionsCategory(ctx, userID, ids, categorize.Transfers); err != nil {
+		return err
+	}
+	slog.Info("marked transfer pairs", "transactions", len(ids))
+	return nil
 }
 
 func isCSV(up *models.Upload) bool {
