@@ -11,6 +11,7 @@ backend:
 	BUCKET_HOST=localhost BUCKET_PORT=9000 BUCKET_NAME=budgeit-uploads \
 	BUCKET_USE_SSL=false \
 	AWS_ACCESS_KEY_ID=budgeit AWS_SECRET_ACCESS_KEY=budgeit-secret \
+	SESSION_SECRET=dev-secret-change-me \
 	go run ./cmd/server
 
 # Run the Vite dev server (proxies /api to :8080)

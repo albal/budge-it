@@ -1,12 +1,40 @@
-import type { CategoryTotal, Summary, Transaction, Upload } from "./types";
+import type { CategoryTotal, Summary, Transaction, Upload, User } from "./types";
 
 const BASE = "/api/v1";
 
+/** Thrown when a request fails because there's no (or an expired) session. */
+export class UnauthorizedError extends Error {
+  constructor() {
+    super("not authenticated");
+    this.name = "UnauthorizedError";
+  }
+}
+
 async function getJSON<T>(path: string): Promise<T> {
   const res = await fetch(BASE + path);
+  if (res.status === 401) throw new UnauthorizedError();
   if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
   return res.json();
 }
+
+/** Logs in (or silently creates an account) with just an email — no password. */
+export async function login(email: string): Promise<User> {
+  const res = await fetch(`${BASE}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `${res.status}`);
+  return res.json();
+}
+
+export async function logout(): Promise<void> {
+  const res = await fetch(`${BASE}/auth/logout`, { method: "POST" });
+  if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+}
+
+/** Returns the current session's user, or throws UnauthorizedError if logged out. */
+export const fetchMe = () => getJSON<User>("/auth/me");
 
 export const fetchSummary = () => getJSON<Summary>("/analytics/summary");
 export const fetchCategoryBreakdown = (month: string) =>

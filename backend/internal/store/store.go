@@ -3,6 +3,7 @@ package store
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -12,7 +13,8 @@ import (
 	"github.com/budge-it/backend/internal/models"
 )
 
-// DefaultUserID is the single-tenant user seeded by the initial migration.
+// DefaultUserID is the single-tenant user seeded by the initial migration,
+// reachable today by logging in as default@budge-it.local.
 const DefaultUserID = "00000000-0000-0000-0000-000000000001"
 
 type Store struct {
@@ -20,6 +22,25 @@ type Store struct {
 }
 
 func New(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
+
+// --- users ---
+
+// GetOrCreateUserByEmail looks up a user by (normalized) email, creating one
+// if it doesn't exist yet. There is no password: providing an email is
+// sufficient to log in as it, creating the account on first use.
+func (s *Store) GetOrCreateUserByEmail(ctx context.Context, email string) (*models.User, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	u := &models.User{}
+	err := s.pool.QueryRow(ctx, `
+		INSERT INTO users (email) VALUES ($1)
+		ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
+		RETURNING id, email, created_at`, email,
+	).Scan(&u.ID, &u.Email, &u.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return u, nil
+}
 
 // --- uploads ---
 

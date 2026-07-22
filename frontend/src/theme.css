@@ -80,6 +80,74 @@ header.topbar h1 {
 }
 header.topbar .tagline {
   color: var(--text-2);
+  flex: 1;
+}
+.session-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--s1);
+  font-size: 13px;
+  text-decoration: underline;
+}
+
+/* --- login --- */
+.login-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.login-card {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: center;
+}
+.login-card h1 {
+  margin: 0;
+  font-size: 22px;
+}
+.login-card label {
+  text-align: left;
+  font-size: 13px;
+  color: var(--text-2);
+  margin-top: 8px;
+}
+.login-card input {
+  font: inherit;
+  color: var(--text-1);
+  background: var(--page);
+  border: 1px solid var(--baseline);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.login-card button {
+  margin-top: 8px;
+  background: var(--s1);
+  color: #fff;
+  border-color: var(--s1);
+  padding: 8px 10px;
+}
+.login-card .hint {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 4px 0 0;
+}
+.login-error {
+  color: var(--delta-bad);
+  font-size: 13px;
+  text-align: left;
 }
 
 .card {

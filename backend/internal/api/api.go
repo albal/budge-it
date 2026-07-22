@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/budge-it/backend/internal/auth"
 	"github.com/budge-it/backend/internal/categorize"
 	"github.com/budge-it/backend/internal/config"
 	"github.com/budge-it/backend/internal/jobs"
@@ -64,25 +65,96 @@ func (s *Server) Router() *gin.Engine {
 
 	v1 := r.Group("/api/v1")
 	{
-		v1.POST("/uploads", s.createUpload)
-		v1.GET("/uploads", s.listUploads)
-		v1.GET("/uploads/:id", s.getUpload)
-		v1.GET("/transactions", s.listTransactions)
-		v1.DELETE("/transactions", s.clearTransactions)
-		v1.PATCH("/transactions/:id", s.recategorize)
+		v1.POST("/auth/login", s.login)
 		v1.GET("/version", s.version)
-		v1.GET("/categories", s.listCategories)
-		v1.POST("/categories", s.addCategory)
-		v1.GET("/rules", s.listRules)
-		v1.GET("/analytics/summary", s.summary)
-		v1.GET("/analytics/categories", s.categoryBreakdown)
+
+		authed := v1.Group("")
+		authed.Use(s.requireAuth())
+		{
+			authed.POST("/auth/logout", s.logout)
+			authed.GET("/auth/me", s.me)
+			authed.POST("/uploads", s.createUpload)
+			authed.GET("/uploads", s.listUploads)
+			authed.GET("/uploads/:id", s.getUpload)
+			authed.GET("/transactions", s.listTransactions)
+			authed.DELETE("/transactions", s.clearTransactions)
+			authed.PATCH("/transactions/:id", s.recategorize)
+			authed.GET("/categories", s.listCategories)
+			authed.POST("/categories", s.addCategory)
+			authed.GET("/rules", s.listRules)
+			authed.GET("/analytics/summary", s.summary)
+			authed.GET("/analytics/categories", s.categoryBreakdown)
+		}
 	}
 	return r
 }
 
-func userID(*gin.Context) string {
-	// Single-tenant for now; swap for the authenticated subject when auth lands.
-	return store.DefaultUserID
+// requireAuth verifies the session cookie and stashes the authenticated
+// user's ID/email in the request context; it aborts with 401 otherwise.
+func (s *Server) requireAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		cookie, err := c.Cookie(auth.CookieName)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+			return
+		}
+		uid, email, err := auth.Verify(s.cfg.SessionSecret, cookie)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+			return
+		}
+		c.Set("userID", uid)
+		c.Set("email", email)
+		c.Next()
+	}
+}
+
+func userID(c *gin.Context) string {
+	return c.MustGet("userID").(string)
+}
+
+// secureCookie reports whether the request arrived over TLS, directly or via
+// the OpenShift Route's edge termination (which forwards this header).
+func secureCookie(c *gin.Context) bool {
+	return c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
+}
+
+type loginReq struct {
+	Email string `json:"email" binding:"required"`
+}
+
+// login has no password: providing an email is sufficient to sign in as it,
+// creating the account on first use.
+func (s *Server) login(c *gin.Context) {
+	var req loginReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	email := strings.TrimSpace(req.Email)
+	if !strings.Contains(email, "@") || len(email) > 254 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "enter a valid email address"})
+		return
+	}
+	u, err := s.store.GetOrCreateUserByEmail(c.Request.Context(), email)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	token := auth.Sign(s.cfg.SessionSecret, u.ID, u.Email, auth.TTL)
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(auth.CookieName, token, int(auth.TTL.Seconds()), "/", "", secureCookie(c), true)
+	c.JSON(http.StatusOK, u)
+}
+
+func (s *Server) logout(c *gin.Context) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(auth.CookieName, "", -1, "/", "", secureCookie(c), true)
+	c.JSON(http.StatusOK, gin.H{"loggedOut": true})
+}
+
+func (s *Server) me(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"id": userID(c), "email": c.MustGet("email").(string)})
 }
 
 func (s *Server) createUpload(c *gin.Context) {

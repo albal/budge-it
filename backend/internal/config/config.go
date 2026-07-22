@@ -15,6 +15,11 @@ type Config struct {
 	Port        string
 	DatabaseURL string
 
+	// SessionSecret signs login session cookies. It must be identical across
+	// every backend replica (the HPA can run 2-10), so it comes from a
+	// Kubernetes Secret rather than being generated per-pod.
+	SessionSecret string
+
 	// Object storage (S3-compatible, provisioned by an ObjectBucketClaim).
 	BucketHost   string
 	BucketPort   string
@@ -42,6 +47,7 @@ func Load() (*Config, error) {
 	c := &Config{
 		Port:            envOr("PORT", "8080"),
 		DatabaseURL:     os.Getenv("DATABASE_URL"),
+		SessionSecret:   os.Getenv("SESSION_SECRET"),
 		BucketHost:      os.Getenv("BUCKET_HOST"),
 		BucketPort:      envOr("BUCKET_PORT", "443"),
 		BucketName:      os.Getenv("BUCKET_NAME"),
@@ -56,6 +62,9 @@ func Load() (*Config, error) {
 	}
 	if c.DatabaseURL == "" {
 		return nil, fmt.Errorf("DATABASE_URL is required")
+	}
+	if c.SessionSecret == "" {
+		return nil, fmt.Errorf("SESSION_SECRET is required")
 	}
 	return c, nil
 }

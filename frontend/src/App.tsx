@@ -4,19 +4,25 @@ import {
   clearTransactions,
   fetchCategories,
   fetchCategoryBreakdown,
+  fetchMe,
   fetchSummary,
   fetchTransactions,
   fetchUploads,
   fetchVersion,
+  logout,
+  UnauthorizedError,
 } from "./api";
-import type { CategoryTotal, Summary, Transaction, Upload } from "./types";
+import type { CategoryTotal, Summary, Transaction, Upload, User } from "./types";
 import CategoryChart from "./components/CategoryChart";
+import LoginForm from "./components/LoginForm";
 import MonthlyFlowChart from "./components/MonthlyFlowChart";
 import StatTile from "./components/StatTile";
 import TransactionTable from "./components/TransactionTable";
 import UploadDropzone from "./components/UploadDropzone";
 
 export default function App() {
+  // undefined = session check in flight, null = logged out
+  const [user, setUser] = useState<User | null | undefined>(undefined);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [breakdown, setBreakdown] = useState<CategoryTotal[]>([]);
   const [txns, setTxns] = useState<Transaction[]>([]);
@@ -69,18 +75,41 @@ export default function App() {
   }, [refreshData]);
 
   useEffect(() => {
-    fetchCategories().then(setCategories).catch(() => setCategories([]));
     fetchVersion().then((v) => setCommit(v.commit)).catch(() => setCommit(""));
+    fetchMe()
+      .then(setUser)
+      .catch((err) => {
+        setUser(null);
+        if (!(err instanceof UnauthorizedError)) setError((err as Error).message);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    fetchCategories().then(setCategories).catch(() => setCategories([]));
     void pollUploads();
     return () => {
       if (pollRef.current !== null) window.clearInterval(pollRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [user]);
 
   useEffect(() => {
+    if (!user) return;
     void refreshData();
-  }, [refreshData]);
+  }, [user, refreshData]);
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } finally {
+      setUser(null);
+      setSummary(null);
+      setBreakdown([]);
+      setTxns([]);
+      setUploads([]);
+    }
+  };
 
   const busyCount = uploads.filter(
     (u) => u.status === "pending" || u.status === "processing",
@@ -94,11 +123,18 @@ export default function App() {
   const outflow = monthFlow ? monthFlow.outflow : summary?.totalOutflow ?? 0;
   const kpiSuffix = month ? ` — ${month}` : "";
 
+  if (user === undefined) return null;
+  if (user === null) return <LoginForm onLoggedIn={setUser} />;
+
   return (
     <div className="container">
       <header className="topbar">
         <h1>Budge-it</h1>
         <span className="tagline">know where your money goes</span>
+        <span className="session-info">
+          {user.email}
+          <button className="link-btn" onClick={() => void handleLogout()}>Log out</button>
+        </span>
       </header>
 
       {error && (
