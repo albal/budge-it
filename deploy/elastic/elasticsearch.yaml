@@ -1,0 +1,37 @@
+# Single-node Elasticsearch for the budge-it observability stack. ECK
+# generates TLS certs and the `elastic` superuser secret
+# (budgeit-es-elastic-user) automatically.
+apiVersion: elasticsearch.k8s.elastic.co/v1
+kind: Elasticsearch
+metadata:
+  name: budgeit
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  version: 8.17.4
+  nodeSets:
+    - name: default
+      count: 1
+      config:
+        # Avoids the vm.max_map_count sysctl requirement, which would need a
+        # privileged init container under OpenShift's restricted SCC.
+        node.store.allow_mmap: false
+      volumeClaimTemplates:
+        - metadata:
+            name: elasticsearch-data
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 20Gi
+      podTemplate:
+        spec:
+          containers:
+            - name: elasticsearch
+              resources:
+                requests:
+                  cpu: 500m
+                  memory: 2Gi
+                limits:
+                  memory: 2Gi

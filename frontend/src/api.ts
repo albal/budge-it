@@ -50,7 +50,10 @@ export const fetchTransactions = (month: string, category: string) => {
 };
 export const fetchUploads = () => getJSON<Upload[]>("/uploads");
 export const fetchCategories = () => getJSON<string[]>("/categories");
-export const fetchVersion = () => getJSON<{ commit: string }>("/version");
+export const fetchVersion = () =>
+  getJSON<{ commit: string; kibanaUrl: string; kibanaDashboardUrl: string }>(
+    "/version",
+  );
 
 /** Creates a custom category; rejects (409) names that already exist. */
 export async function addCategory(name: string): Promise<void> {

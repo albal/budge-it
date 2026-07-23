@@ -32,6 +32,9 @@ export default function App() {
   const [category, setCategory] = useState("");
   const [error, setError] = useState("");
   const [commit, setCommit] = useState("");
+  // Kibana observability links (empty when the Elastic stack isn't deployed)
+  const [kibanaUrl, setKibanaUrl] = useState("");
+  const [dashboardUrl, setDashboardUrl] = useState("");
   const pollRef = useRef<number | null>(null);
 
   const refreshData = useCallback(async () => {
@@ -75,7 +78,13 @@ export default function App() {
   }, [refreshData]);
 
   useEffect(() => {
-    fetchVersion().then((v) => setCommit(v.commit)).catch(() => setCommit(""));
+    fetchVersion()
+      .then((v) => {
+        setCommit(v.commit);
+        setKibanaUrl(v.kibanaUrl ?? "");
+        setDashboardUrl(v.kibanaDashboardUrl ?? "");
+      })
+      .catch(() => setCommit(""));
     fetchMe()
       .then(setUser)
       .catch((err) => {
@@ -131,6 +140,20 @@ export default function App() {
       <header className="topbar">
         <h1>Budge-it</h1>
         <span className="tagline">know where your money goes</span>
+        {(dashboardUrl || kibanaUrl) && (
+          <nav className="obs-links">
+            {dashboardUrl && (
+              <a href={dashboardUrl} target="_blank" rel="noreferrer">
+                📊 Dashboard
+              </a>
+            )}
+            {kibanaUrl && (
+              <a href={kibanaUrl} target="_blank" rel="noreferrer">
+                Kibana
+              </a>
+            )}
+          </nav>
+        )}
         <span className="session-info">
           {user.email}
           <button className="link-btn" onClick={() => void handleLogout()}>Log out</button>

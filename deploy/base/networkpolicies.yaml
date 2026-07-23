@@ -123,6 +123,14 @@ spec:
         - port: 443
         - port: 6443
         - port: 8443
+    # Elastic APM Server (OTLP traces/metrics export) in the elastic
+    # namespace, installed by the budge-it-elastic Application.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: elastic
+      ports:
+        - port: 8200
     # External OCR service (HTTPS). Tighten to an ipBlock or in-cluster
     # selector once the OCR endpoint is fixed.
     - to:

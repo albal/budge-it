@@ -1,0 +1,31 @@
+apiVersion: kibana.k8s.elastic.co/v1
+kind: Kibana
+metadata:
+  name: budgeit
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  version: 8.17.4
+  count: 1
+  elasticsearchRef:
+    name: budgeit
+  http:
+    tls:
+      # The OpenShift Route (kibana-route.yaml) terminates TLS at the edge,
+      # so Kibana itself serves plain HTTP in-cluster.
+      selfSignedCertificate:
+        disabled: true
+  config:
+    # Keep in sync with the Route host and the budge-it ConfigMap's
+    # KIBANA_URL (deploy/base/configmap.yaml).
+    server.publicBaseUrl: "https://kibana-elastic.apps.example.com"
+  podTemplate:
+    spec:
+      containers:
+        - name: kibana
+          resources:
+            requests:
+              cpu: 200m
+              memory: 1Gi
+            limits:
+              memory: 1Gi

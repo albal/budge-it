@@ -38,6 +38,11 @@ type Config struct {
 	MaxUploadBytes int64
 	Workers        int
 
+	// Observability links surfaced in the frontend header: the Kibana Route
+	// and the budge-it dashboard inside it (see deploy/elastic).
+	KibanaURL          string
+	KibanaDashboardURL string
+
 	// Version is the git commit the binary was built from, injected by main
 	// from an ldflags variable (not an environment variable).
 	Version string
@@ -59,6 +64,9 @@ func Load() (*Config, error) {
 		OCRAPIKey:       os.Getenv("OCR_API_KEY"),
 		MaxUploadBytes:  envInt64("MAX_UPLOAD_BYTES", 10<<20), // 10 MB per PRD
 		Workers:         int(envInt64("WORKERS", 4)),
+
+		KibanaURL:          os.Getenv("KIBANA_URL"),
+		KibanaDashboardURL: os.Getenv("KIBANA_DASHBOARD_URL"),
 	}
 	if c.DatabaseURL == "" {
 		return nil, fmt.Errorf("DATABASE_URL is required")

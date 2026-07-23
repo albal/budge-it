@@ -1,0 +1,36 @@
+# Elastic APM Server: the OTLP ingest endpoint for the budge-it backend's
+# OpenTelemetry traces and metrics (OTLP/HTTP on port 8200), writing them to
+# Elasticsearch as traces-apm* / metrics-apm* data streams.
+apiVersion: apm.k8s.elastic.co/v1
+kind: ApmServer
+metadata:
+  name: budgeit
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  version: 8.17.4
+  count: 1
+  elasticsearchRef:
+    name: budgeit
+  kibanaRef:
+    name: budgeit
+  http:
+    tls:
+      # Plain HTTP in-cluster: the backend authenticates with the secret
+      # token, and the budge-it NetworkPolicy restricts who can reach it.
+      selfSignedCertificate:
+        disabled: true
+  # Loads apm-server.auth.secret_token from the keystore secret; the backend
+  # must send the same value (see apm-secret-token.yaml).
+  secureSettings:
+    - secretName: budgeit-apm-secret-token
+  podTemplate:
+    spec:
+      containers:
+        - name: apm-server
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 512Mi

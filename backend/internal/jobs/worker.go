@@ -11,6 +11,11 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/budge-it/backend/internal/categorize"
 	"github.com/budge-it/backend/internal/ingest"
 	"github.com/budge-it/backend/internal/metrics"
@@ -78,6 +83,13 @@ func (q *Queue) Wait() { q.wg.Wait() }
 
 func (q *Queue) process(ctx context.Context, uploadID string) {
 	start := time.Now()
+	// Root span for the async pipeline: uploads are processed outside the
+	// HTTP request, so each job is its own trace in Elastic APM.
+	ctx, span := otel.Tracer("budgeit/jobs").Start(ctx, "process statement",
+		trace.WithSpanKind(trace.SpanKindConsumer),
+		trace.WithAttributes(attribute.String("upload.id", uploadID)))
+	defer span.End()
+
 	up, err := q.store.GetUploadByID(ctx, uploadID)
 	if err != nil {
 		slog.Error("job: load upload", "upload", uploadID, "error", err)
@@ -95,6 +107,8 @@ func (q *Queue) process(ctx context.Context, uploadID string) {
 	metrics.JobDuration.Observe(time.Since(start).Seconds())
 	if err != nil {
 		slog.Error("job failed", "upload", up.ID, "file", up.Filename, "error", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "extract failed")
 		metrics.JobsProcessed.WithLabelValues("error").Inc()
 		if dbErr := q.store.MarkUploadError(ctx, up.ID, err.Error()); dbErr != nil {
 			slog.Error("job: mark error", "upload", up.ID, "error", dbErr)
@@ -115,6 +129,7 @@ func (q *Queue) process(ctx context.Context, uploadID string) {
 	}
 	metrics.JobsProcessed.WithLabelValues("done").Inc()
 	metrics.TransactionsExtracted.Add(float64(txnCount))
+	span.SetAttributes(attribute.Int("transactions.extracted", txnCount))
 	// Non-fatal: the upload is already done; pairing retries on next upload.
 	if err := q.markTransfers(ctx, up.UserID); err != nil {
 		slog.Warn("transfer detection", "upload", up.ID, "error", err)

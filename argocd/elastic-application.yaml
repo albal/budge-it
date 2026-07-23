@@ -1,0 +1,37 @@
+# Argo CD Application owning the budge-it observability stack: the ECK
+# operator (OLM, own-namespace) plus Elasticsearch, Kibana and APM Server in
+# the `elastic` namespace, the Kibana Route, and the dashboard-import hook.
+# The budge-it backend ships OpenTelemetry traces/metrics to the APM server,
+# which stores them in Elasticsearch for the Kibana dashboard.
+# Apply once alongside argocd/application.yaml:
+#   oc apply -f argocd/elastic-application.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: budge-it-elastic
+  namespace: openshift-gitops
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/albal/budge-it.git
+    targetRevision: main
+    path: deploy/elastic
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: elastic
+  syncPolicy:
+    automated:
+      # prune deliberately off: removing this Application (or a manifest
+      # rename) must not delete the Elasticsearch cluster and the telemetry
+      # data stored in its PVC.
+      selfHeal: true
+    # Same reasoning as the other apps: ECK's CRDs aren't Established the
+    # instant the Subscription is applied, so retry with backoff lets the
+    # Elasticsearch/Kibana/ApmServer wave self-heal once OLM finishes
+    # installing the operator.
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m

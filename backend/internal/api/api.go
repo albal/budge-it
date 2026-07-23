@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 
 	"github.com/budge-it/backend/internal/auth"
 	"github.com/budge-it/backend/internal/categorize"
@@ -50,7 +51,17 @@ func NewServer(cfg *config.Config, st *store.Store, objects objectstore.Store, q
 
 func (s *Server) Router() *gin.Engine {
 	r := gin.New()
-	r.Use(gin.Recovery(), metrics.GinMiddleware())
+	// otelgin emits a trace span per request to the OTLP endpoint (Elastic
+	// APM); health/readiness probes and metric scrapes would drown out real
+	// traffic, so they're filtered.
+	r.Use(gin.Recovery(), metrics.GinMiddleware(), otelgin.Middleware("budgeit-backend",
+		otelgin.WithGinFilter(func(c *gin.Context) bool {
+			switch c.FullPath() {
+			case "/healthz", "/readyz", "/metrics":
+				return false
+			}
+			return true
+		})))
 	r.MaxMultipartMemory = 8 << 20
 
 	r.GET("/healthz", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
@@ -295,7 +306,11 @@ func (s *Server) clearTransactions(c *gin.Context) {
 }
 
 func (s *Server) version(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"commit": s.cfg.Version})
+	c.JSON(http.StatusOK, gin.H{
+		"commit":             s.cfg.Version,
+		"kibanaUrl":          s.cfg.KibanaURL,
+		"kibanaDashboardUrl": s.cfg.KibanaDashboardURL,
+	})
 }
 
 // allCategories is the built-in list plus the user's custom categories.

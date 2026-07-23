@@ -19,6 +19,7 @@ import (
 	"github.com/budge-it/backend/internal/jobs"
 	"github.com/budge-it/backend/internal/objectstore"
 	"github.com/budge-it/backend/internal/store"
+	"github.com/budge-it/backend/internal/telemetry"
 )
 
 // version is stamped at build time: -ldflags "-X main.version=<commit>".
@@ -37,6 +38,12 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	otelShutdown, err := telemetry.Setup(ctx, "budgeit-backend", version)
+	if err != nil {
+		slog.Error("telemetry", "error", err)
+		os.Exit(1)
+	}
 
 	pool, err := db.Connect(ctx, cfg.DatabaseURL)
 	if err != nil {
@@ -104,4 +111,7 @@ func main() {
 		slog.Error("shutdown", "error", err)
 	}
 	queue.Wait()
+	if err := otelShutdown(shutdownCtx); err != nil {
+		slog.Error("telemetry shutdown", "error", err)
+	}
 }

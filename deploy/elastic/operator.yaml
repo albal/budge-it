@@ -1,0 +1,28 @@
+# OLM-managed install of Elastic Cloud on Kubernetes (ECK), scoped to this
+# namespace only (own-namespace install mode), mirroring how the budge-it app
+# installs the Crunchy Postgres operator. The Elasticsearch/Kibana/ApmServer
+# CRs below depend on ECK's CRDs, so the Subscription runs a wave earlier and
+# the Application retries with backoff until OLM has the CRDs Established.
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: elastic-operators
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  targetNamespaces:
+    - elastic
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: elasticsearch-eck-operator-certified
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  # Confirm channel/package name against the cluster's OperatorHub catalog.
+  channel: stable
+  name: elasticsearch-eck-operator-certified
+  source: certified-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic

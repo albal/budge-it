@@ -12,3 +12,12 @@ data:
   PUBLIC_URL: "https://budgeit.apps.example.com"
   WORKERS: "4"
   MAX_UPLOAD_BYTES: "10485760"
+  # OTLP/HTTP endpoint for traces and metrics: the Elastic APM Server
+  # installed by the budge-it-elastic Application (deploy/elastic). Leave
+  # empty to disable telemetry export.
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://budgeit-apm-http.elastic.svc:8200"
+  # Public Kibana Route and the budge-it dashboard inside it; shown as links
+  # in the frontend header. Keep the host in sync with the Route created in
+  # deploy/elastic/kibana-route.yaml (oc -n elastic get route kibana).
+  KIBANA_URL: "https://kibana-elastic.apps.example.com"
+  KIBANA_DASHBOARD_URL: "https://kibana-elastic.apps.example.com/app/dashboards#/view/budgeit-observability"

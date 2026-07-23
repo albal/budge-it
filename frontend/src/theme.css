@@ -82,6 +82,19 @@ header.topbar .tagline {
   color: var(--text-2);
   flex: 1;
 }
+.obs-links {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 13px;
+}
+.obs-links a {
+  color: var(--s1);
+  text-decoration: none;
+}
+.obs-links a:hover {
+  text-decoration: underline;
+}
 .session-info {
   display: inline-flex;
   align-items: center;

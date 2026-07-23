@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: elastic
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+  labels:
+    # Tells the OpenShift GitOps operator to grant its Argo CD
+    # application-controller RBAC in this namespace; without it every
+    # create is forbidden and the sync fails.
+    argocd.argoproj.io/managed-by: openshift-gitops

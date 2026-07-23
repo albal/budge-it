@@ -1,0 +1,28 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: elastic
+
+resources:
+  - namespace.yaml
+  - operator.yaml
+  - apm-secret-token.yaml
+  - elasticsearch.yaml
+  - kibana.yaml
+  - apm-server.yaml
+  - kibana-route.yaml
+  - dashboard-import-job.yaml
+
+# Kibana saved objects imported by the PostSync hook Job.
+configMapGenerator:
+  - name: budgeit-kibana-dashboards
+    files:
+      - dashboards/budgeit-observability.ndjson
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+labels:
+  - includeSelectors: false
+    pairs:
+      app.kubernetes.io/part-of: budge-it

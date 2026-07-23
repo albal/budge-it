@@ -1,0 +1,21 @@
+# Edge-terminated Route for Kibana (TLS cert from the router's default
+# wildcard cert). The frontend header links here and to the budge-it
+# dashboard inside it — see KIBANA_URL / KIBANA_DASHBOARD_URL in
+# deploy/base/configmap.yaml.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: kibana
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  labels:
+    app: budgeit-kibana
+spec:
+  to:
+    kind: Service
+    name: budgeit-kb-http
+  port:
+    targetPort: 5601
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
