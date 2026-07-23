@@ -46,7 +46,8 @@ flowchart LR
 | `deploy/ci/` | GitOps-managed CI: OpenShift Pipelines operator install, `budge-it-ci` namespace, clone → test → Buildah build Pipeline, webhook Triggers + EventListener Route, registry-push RBAC. |
 | `tekton/` | Example manual `PipelineRun` for kicking off a build by hand. |
 | `deploy/elastic/` | GitOps-managed observability: ECK operator install (OLM), single-node `Elasticsearch`, `Kibana` (+ edge-TLS Route), `ApmServer` (OTLP ingest), and a PostSync hook Job that imports the budge-it Kibana dashboard. |
-| `argocd/` | OpenShift GitOps `Application`s: `budge-it` syncing `deploy/overlays/prod`, `budge-it-ci` syncing `deploy/ci`, `budge-it-elastic` syncing `deploy/elastic`. |
+| `deploy/loadsim/` | User-load simulator: a minutely CronJob driving 50 random `@void.com` users/minute through login → CSV upload → annotation → analytics review via the public API Route, plus a cleanup CronJob (in `budge-it`, every 10 min) purging those accounts after two hours. |
+| `argocd/` | OpenShift GitOps `Application`s: `budge-it` syncing `deploy/overlays/prod`, `budge-it-ci` syncing `deploy/ci`, `budge-it-elastic` syncing `deploy/elastic`, `budge-it-loadsim` syncing `deploy/loadsim`. |
 | `examples/` | Sample CSV statement for a quick demo. |
 
 ## Local development

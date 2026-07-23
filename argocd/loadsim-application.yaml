@@ -1,0 +1,28 @@
+# Argo CD Application owning the user-load simulator: a minutely CronJob in
+# budge-it-loadsim that walks 50 random @void.com users/minute through the
+# real product flow (login, statement upload, annotation, analytics review)
+# via the public API Route, plus a cleanup CronJob in the budge-it namespace
+# that purges those accounts after two hours.
+# Apply once alongside the other applications:
+#   oc apply -f argocd/loadsim-application.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: budge-it-loadsim
+  namespace: openshift-gitops
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/albal/budge-it.git
+    targetRevision: main
+    path: deploy/loadsim
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: budge-it-loadsim
+  syncPolicy:
+    automated:
+      # Everything here is stateless simulation tooling; pruning is safe.
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - PruneLast=true

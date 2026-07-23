@@ -162,6 +162,11 @@ spec:
         - podSelector:
             matchLabels:
               app: budgeit-backend
+        # The loadsim cleanup CronJob (deploy/loadsim) purges simulated
+        # @void.com accounts directly in the database.
+        - podSelector:
+            matchLabels:
+              app: budgeit-cleanup
       ports:
         - port: 5432
     - from:

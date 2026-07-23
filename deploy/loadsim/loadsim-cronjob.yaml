@@ -1,0 +1,64 @@
+# Fires every minute; each run walks 50 simulated users (random @void.com
+# emails) through the full product flow against the public API Route:
+# login -> upload generated CSV statement -> annotate -> review analytics.
+# The companion cleanup CronJob (budge-it namespace) purges these accounts
+# after two hours.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: budgeit-loadsim
+  namespace: budge-it-loadsim
+spec:
+  schedule: "* * * * *"
+  # Runs normally finish well inside a minute, but under load (worker queue
+  # backlog) they may overlap; that's fine — the target rate is 50 new
+  # users/minute regardless.
+  concurrencyPolicy: Allow
+  startingDeadlineSeconds: 120
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 240
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            app: budgeit-loadsim
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: simulate
+              image: registry.access.redhat.com/ubi9/python-311:latest
+              command: ["python3", "/scripts/simulate.py"]
+              env:
+                - name: API_URL
+                  value: https://budgeit-api-budge-it.apps.budgie.lab.tsew.net
+                - name: USERS
+                  value: "50"
+                - name: CONCURRENCY
+                  value: "10"
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+          volumes:
+            - name: scripts
+              configMap:
+                name: budgeit-loadsim-script

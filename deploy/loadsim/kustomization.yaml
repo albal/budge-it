@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# No global namespace: the simulator lives in budge-it-loadsim, but the
+# cleanup CronJob must run in budge-it to read the database secret. Every
+# resource sets its namespace explicitly.
+
+resources:
+  - namespace.yaml
+  - loadsim-cronjob.yaml
+  - cleanup-cronjob.yaml
+
+configMapGenerator:
+  - name: budgeit-loadsim-script
+    namespace: budge-it-loadsim
+    files:
+      - simulate.py
+  - name: budgeit-loadsim-cleanup-sql
+    namespace: budge-it
+    files:
+      - cleanup.sql
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+labels:
+  - includeSelectors: false
+    pairs:
+      app.kubernetes.io/part-of: budge-it
