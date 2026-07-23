@@ -22,8 +22,16 @@ spec:
       # token, and the budge-it NetworkPolicy restricts who can reach it.
       selfSignedCertificate:
         disabled: true
-  # Loads apm-server.auth.secret_token from the keystore secret; the backend
-  # must send the same value (see apm-secret-token.yaml).
+  # secureSettings alone only loads the value into the APM Server keystore;
+  # without this explicit config reference, ECK instead auto-generates and
+  # wires up its own random secret token (in a `budgeit-apm-token` Secret it
+  # manages), which the backend has no way to learn. This `${...}` reference
+  # is Beats-style keystore substitution: it must match the secureSettings
+  # secret's key name exactly, and the resulting value must match
+  # ELASTIC_APM_SECRET_TOKEN in the budge-it namespace (see apm-secret-token.yaml
+  # and deploy/base/secret.yaml).
+  config:
+    apm-server.auth.secret_token: "${apm-server.auth.secret_token}"
   secureSettings:
     - secretName: budgeit-apm-secret-token
   podTemplate:
