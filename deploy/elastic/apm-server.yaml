@@ -7,6 +7,8 @@ metadata:
   name: budgeit
   annotations:
     argocd.argoproj.io/sync-wave: "0"
+    # See elasticsearch.yaml: required while the ECK CRDs are absent.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   version: 8.17.4
   count: 1

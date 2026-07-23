@@ -4,6 +4,8 @@ metadata:
   name: budgeit
   annotations:
     argocd.argoproj.io/sync-wave: "0"
+    # See elasticsearch.yaml: required while the ECK CRDs are absent.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   version: 8.17.4
   count: 1
@@ -18,7 +20,7 @@ spec:
   config:
     # Keep in sync with the Route host and the budge-it ConfigMap's
     # KIBANA_URL (deploy/base/configmap.yaml).
-    server.publicBaseUrl: "https://kibana-elastic.apps.example.com"
+    server.publicBaseUrl: "https://kibana-elastic.apps.budgie.lab.tsew.net"
   podTemplate:
     spec:
       containers:

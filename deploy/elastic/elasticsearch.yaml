@@ -7,6 +7,10 @@ metadata:
   name: budgeit
   annotations:
     argocd.argoproj.io/sync-wave: "0"
+    # Without this, Argo marks the task invalid while ECK's CRD is still
+    # being installed by OLM — and invalid tasks abort the whole sync before
+    # any wave (including the operator install itself) is applied.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   version: 8.17.4
   nodeSets:

@@ -19,5 +19,5 @@ data:
   # Public Kibana Route and the budge-it dashboard inside it; shown as links
   # in the frontend header. Keep the host in sync with the Route created in
   # deploy/elastic/kibana-route.yaml (oc -n elastic get route kibana).
-  KIBANA_URL: "https://kibana-elastic.apps.example.com"
-  KIBANA_DASHBOARD_URL: "https://kibana-elastic.apps.example.com/app/dashboards#/view/budgeit-observability"
+  KIBANA_URL: "https://kibana-elastic.apps.budgie.lab.tsew.net"
+  KIBANA_DASHBOARD_URL: "https://kibana-elastic.apps.budgie.lab.tsew.net/app/dashboards#/view/budgeit-observability"
