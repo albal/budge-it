@@ -1,4 +1,11 @@
-import type { CategoryTotal, Summary, Transaction, Upload, User } from "./types";
+import type {
+  AdminUser,
+  CategoryTotal,
+  Summary,
+  Transaction,
+  Upload,
+  User,
+} from "./types";
 
 const BASE = "/api/v1";
 
@@ -10,9 +17,18 @@ export class UnauthorizedError extends Error {
   }
 }
 
+/** Thrown when the session is valid but lacks administrator rights. */
+export class ForbiddenError extends Error {
+  constructor() {
+    super("administrator access required");
+    this.name = "ForbiddenError";
+  }
+}
+
 async function getJSON<T>(path: string): Promise<T> {
   const res = await fetch(BASE + path);
   if (res.status === 401) throw new UnauthorizedError();
+  if (res.status === 403) throw new ForbiddenError();
   if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
   return res.json();
 }
@@ -70,6 +86,23 @@ export async function addCategory(name: string): Promise<void> {
 export async function clearTransactions(): Promise<void> {
   const res = await fetch(`${BASE}/transactions`, { method: "DELETE" });
   if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+}
+
+/** Lists every account. Administrators only — 403 otherwise. */
+export const fetchAdminUsers = () => getJSON<AdminUser[]>("/admin/users");
+
+/**
+ * Permanently deletes a user and all of their uploads, transactions, rules and
+ * custom categories. Administrators only; the server refuses self-deletion.
+ */
+export async function deleteAdminUser(id: string): Promise<void> {
+  const res = await fetch(`${BASE}/admin/users/${id}`, { method: "DELETE" });
+  if (res.status === 401) throw new UnauthorizedError();
+  if (res.status === 403) throw new ForbiddenError();
+  if (!res.ok) {
+    const msg = (await res.json().catch(() => null))?.error;
+    throw new Error(msg ?? `${res.status} ${res.statusText}`);
+  }
 }
 
 export async function recategorize(

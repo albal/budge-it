@@ -13,6 +13,7 @@ import {
   UnauthorizedError,
 } from "./api";
 import type { CategoryTotal, Summary, Transaction, Upload, User } from "./types";
+import AdminPage from "./components/AdminPage";
 import CategoryChart from "./components/CategoryChart";
 import LoginForm from "./components/LoginForm";
 import MonthlyFlowChart from "./components/MonthlyFlowChart";
@@ -35,6 +36,9 @@ export default function App() {
   // Kibana observability links (empty when the Elastic stack isn't deployed)
   const [kibanaUrl, setKibanaUrl] = useState("");
   const [dashboardUrl, setDashboardUrl] = useState("");
+  // Hash routing keeps /admin linkable and survives a reload without pulling
+  // in a router dependency for what is currently a two-view app.
+  const [route, setRoute] = useState(() => window.location.hash);
   const pollRef = useRef<number | null>(null);
 
   const refreshData = useCallback(async () => {
@@ -78,6 +82,12 @@ export default function App() {
   }, [refreshData]);
 
   useEffect(() => {
+    const onHashChange = () => setRoute(window.location.hash);
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
+
+  useEffect(() => {
     fetchVersion()
       .then((v) => {
         setCommit(v.commit);
@@ -108,6 +118,11 @@ export default function App() {
     void refreshData();
   }, [user, refreshData]);
 
+  const navigate = (hash: string) => {
+    window.location.hash = hash;
+    setRoute(hash);
+  };
+
   const handleLogout = async () => {
     try {
       await logout();
@@ -117,6 +132,8 @@ export default function App() {
       setBreakdown([]);
       setTxns([]);
       setUploads([]);
+      // Don't strand a logged-out visitor on the admin route.
+      navigate("");
     }
   };
 
@@ -134,6 +151,9 @@ export default function App() {
 
   if (user === undefined) return null;
   if (user === null) return <LoginForm onLoggedIn={setUser} />;
+  if (route === "#/admin") {
+    return <AdminPage currentUser={user} onBack={() => navigate("")} />;
+  }
 
   return (
     <div className="container">
@@ -156,6 +176,13 @@ export default function App() {
         )}
         <span className="session-info">
           {user.email}
+          {/* Only rendered for allowlisted accounts; the backend authorizes
+              every /admin request regardless of what the UI shows. */}
+          {user.isAdmin && (
+            <button className="link-btn" onClick={() => navigate("#/admin")}>
+              Admin
+            </button>
+          )}
           <button className="link-btn" onClick={() => void handleLogout()}>Log out</button>
         </span>
       </header>

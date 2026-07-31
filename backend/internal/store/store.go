@@ -25,21 +25,156 @@ func New(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
 // --- users ---
 
+// adminClaimLock is an arbitrary but stable key for the advisory lock that
+// serializes the "first login becomes administrator" claim.
+const adminClaimLock int64 = 8_471_123
+
+const upsertUserSQL = `
+	INSERT INTO users (email) VALUES ($1)
+	ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
+	RETURNING id, email, is_admin, created_at`
+
 // GetOrCreateUserByEmail looks up a user by (normalized) email, creating one
 // if it doesn't exist yet. There is no password: providing an email is
 // sufficient to log in as it, creating the account on first use.
+//
+// The first account to get here when the system has no administrator claims
+// that role. Once an administrator exists this is a plain upsert; only while
+// the seat is unclaimed does it take an advisory lock, so two simultaneous
+// logins can't both come away believing they won.
 func (s *Store) GetOrCreateUserByEmail(ctx context.Context, email string) (*models.User, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
+
+	claimed, err := s.adminExists(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if claimed {
+		u := &models.User{}
+		if err := s.pool.QueryRow(ctx, upsertUserSQL, email).
+			Scan(&u.ID, &u.Email, &u.IsAdmin, &u.CreatedAt); err != nil {
+			return nil, err
+		}
+		return u, nil
+	}
+	return s.createAndMaybeClaimAdmin(ctx, email)
+}
+
+func (s *Store) adminExists(ctx context.Context) (bool, error) {
+	var exists bool
+	err := s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE is_admin)`).Scan(&exists)
+	return exists, err
+}
+
+// createAndMaybeClaimAdmin upserts the user and, if the administrator seat is
+// still free, claims it for them. The advisory lock is transaction-scoped and
+// released on commit or rollback.
+func (s *Store) createAndMaybeClaimAdmin(ctx context.Context, email string) (*models.User, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, adminClaimLock); err != nil {
+		return nil, err
+	}
+
 	u := &models.User{}
-	err := s.pool.QueryRow(ctx, `
-		INSERT INTO users (email) VALUES ($1)
-		ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
-		RETURNING id, email, created_at`, email,
-	).Scan(&u.ID, &u.Email, &u.CreatedAt)
+	if err := tx.QueryRow(ctx, upsertUserSQL, email).
+		Scan(&u.ID, &u.Email, &u.IsAdmin, &u.CreatedAt); err != nil {
+		return nil, err
+	}
+
+	if !u.IsAdmin {
+		// The NOT EXISTS re-check runs under the lock, so it sees any claim
+		// made by a login that raced us here.
+		tag, err := tx.Exec(ctx, `
+			UPDATE users SET is_admin = true
+			WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM users WHERE is_admin)`, u.ID)
+		if err != nil {
+			return nil, err
+		}
+		u.IsAdmin = tag.RowsAffected() > 0
+	}
+	return u, tx.Commit(ctx)
+}
+
+// ListUsers returns every account with the volume of data hanging off it,
+// newest first. The counts come from correlated subqueries rather than joins
+// so a user with no uploads still reports zeroes instead of dropping out.
+func (s *Store) ListUsers(ctx context.Context) ([]*models.AdminUser, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT u.id, u.email, u.is_admin, u.created_at,
+		       (SELECT COUNT(*) FROM uploads           WHERE user_id = u.id),
+		       (SELECT COUNT(*) FROM transactions      WHERE user_id = u.id),
+		       (SELECT COUNT(*) FROM category_rules    WHERE user_id = u.id),
+		       (SELECT COUNT(*) FROM custom_categories WHERE user_id = u.id)
+		FROM users u
+		ORDER BY u.created_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	users := []*models.AdminUser{}
+	for rows.Next() {
+		u := &models.AdminUser{}
+		if err := rows.Scan(&u.ID, &u.Email, &u.IsAdmin, &u.CreatedAt,
+			&u.UploadCount, &u.TxnCount, &u.RuleCount, &u.CategoryCount); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
+// GetUserByID returns a single account, or pgx.ErrNoRows if it doesn't exist.
+func (s *Store) GetUserByID(ctx context.Context, id string) (*models.User, error) {
+	u := &models.User{}
+	err := s.pool.QueryRow(ctx,
+		`SELECT id, email, is_admin, created_at FROM users WHERE id = $1`, id,
+	).Scan(&u.ID, &u.Email, &u.IsAdmin, &u.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
 	return u, nil
+}
+
+// DeleteUser removes an account and everything belonging to it. The user_id
+// foreign keys are plain REFERENCES with no ON DELETE CASCADE, so the child
+// rows have to go first and in dependency order — all inside one transaction
+// so a partial failure can't leave a user with half their data missing.
+//
+// It reports deleted=false when no such user exists, leaving the caller to
+// decide whether that's a 404.
+func (s *Store) DeleteUser(ctx context.Context, id string) (deleted bool, err error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return false, err
+	}
+	// Rollback is a no-op once the transaction has been committed.
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// transactions before uploads: transactions.upload_id would cascade, but
+	// transactions.user_id would not, so delete them explicitly either way.
+	for _, stmt := range []string{
+		`DELETE FROM transactions      WHERE user_id = $1`,
+		`DELETE FROM uploads           WHERE user_id = $1`,
+		`DELETE FROM category_rules    WHERE user_id = $1`,
+		`DELETE FROM custom_categories WHERE user_id = $1`,
+	} {
+		if _, err := tx.Exec(ctx, stmt, id); err != nil {
+			return false, err
+		}
+	}
+	tag, err := tx.Exec(ctx, `DELETE FROM users WHERE id = $1`, id)
+	if err != nil {
+		return false, err
+	}
+	if tag.RowsAffected() == 0 {
+		return false, nil
+	}
+	return true, tx.Commit(ctx)
 }
 
 // --- uploads ---

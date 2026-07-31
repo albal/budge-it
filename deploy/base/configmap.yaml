@@ -12,6 +12,15 @@ data:
   PUBLIC_URL: "https://budgeit.apps.example.com"
   WORKERS: "4"
   MAX_UPLOAD_BYTES: "10485760"
+  # Administrator access is normally claimed by the FIRST account to log in.
+  # This is an additional, out-of-band allowlist (comma-separated) for
+  # bootstrapping a database that already has users — after which no first
+  # login exists to claim the seat — or for recovering from the claiming
+  # account being deleted. Empty is the expected steady state.
+  #
+  # Login is passwordless, so anyone who can reach the app and knows an
+  # address listed here can assume it: keep it empty unless you need it.
+  ADMIN_EMAILS: ""
   # OTLP/HTTP endpoint for traces and metrics: the Elastic APM Server
   # installed by the budge-it-elastic Application (deploy/elastic). Leave
   # empty to disable telemetry export.

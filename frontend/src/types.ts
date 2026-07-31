@@ -1,6 +1,22 @@
 export interface User {
   id: string;
   email: string;
+  /** Claimed by the first account to log in (or granted via ADMIN_EMAILS).
+   *  Only gates the UI link — the backend re-checks authorization on every
+   *  /admin request. */
+  isAdmin?: boolean;
+}
+
+/** A user account plus the volume of data that deleting it would remove. */
+export interface AdminUser {
+  id: string;
+  email: string;
+  isAdmin: boolean;
+  createdAt: string;
+  uploadCount: number;
+  txnCount: number;
+  ruleCount: number;
+  categoryCount: number;
 }
 
 export interface Upload {

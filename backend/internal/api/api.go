@@ -43,10 +43,14 @@ type Server struct {
 	objects objectstore.Store
 	queue   *jobs.Queue
 	ready   func() error
+	// admin is the subset of the store the administration endpoints use,
+	// kept as an interface so those handlers can be tested without a
+	// database. It points at store in production.
+	admin adminStore
 }
 
 func NewServer(cfg *config.Config, st *store.Store, objects objectstore.Store, queue *jobs.Queue, ready func() error) *Server {
-	return &Server{cfg: cfg, store: st, objects: objects, queue: queue, ready: ready}
+	return &Server{cfg: cfg, store: st, objects: objects, queue: queue, ready: ready, admin: st}
 }
 
 func (s *Server) Router() *gin.Engine {
@@ -95,6 +99,16 @@ func (s *Server) Router() *gin.Engine {
 			authed.GET("/rules", s.listRules)
 			authed.GET("/analytics/summary", s.summary)
 			authed.GET("/analytics/categories", s.categoryBreakdown)
+
+			// Administration: authenticated *and* on the ADMIN_EMAILS
+			// allowlist. Nested under authed so an anonymous caller gets
+			// 401 rather than leaking that the routes exist.
+			admin := authed.Group("/admin")
+			admin.Use(s.requireAdmin())
+			{
+				admin.GET("/users", s.listUsers)
+				admin.DELETE("/users/:id", s.deleteUser)
+			}
 		}
 	}
 	return r
@@ -165,7 +179,18 @@ func (s *Server) logout(c *gin.Context) {
 }
 
 func (s *Server) me(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"id": userID(c), "email": c.MustGet("email").(string)})
+	// isAdmin drives whether the frontend offers the admin link; the server
+	// re-checks it on every /admin request regardless. A lookup failure
+	// shouldn't break the session check, so it degrades to "not an admin".
+	admin, err := s.isAdmin(c)
+	if err != nil {
+		admin = false
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"id":      userID(c),
+		"email":   c.MustGet("email").(string),
+		"isAdmin": admin,
+	})
 }
 
 func (s *Server) createUpload(c *gin.Context) {

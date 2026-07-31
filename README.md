@@ -63,6 +63,17 @@ make frontend     # Vite dev server on :5173 (proxies /api)
 Then open http://localhost:5173 and drop `examples/sample-statement.csv` on
 the upload zone. Run tests with `make test`.
 
+The first account you log in with owns the [admin page](#administration). To
+hand it to a different account later, clear the flag and log in again:
+
+```sh
+psql postgres://budgeit:budgeit@localhost:5432/budgeit \
+  -c 'UPDATE users SET is_admin = false'
+```
+
+`make test` skips the tests that need a database; `make dev-deps &&
+make test-integration` runs those too.
+
 ## Deploying to OpenShift
 
 Prerequisites (installed cluster-wide, outside this repo's GitOps scope):
@@ -157,4 +168,75 @@ ingress. The backend HPA scales 2–10 replicas on CPU/memory for batch OCR load
 | `GET /api/v1/analytics/summary` | Totals plus monthly inflow/outflow series |
 | `GET /api/v1/analytics/categories?month=` | Spending totals by category |
 | `GET /api/v1/categories`, `GET /api/v1/rules` | Category list, saved rules |
+| `GET /api/v1/auth/me` | Current session's user; `isAdmin` reflects the `ADMIN_EMAILS` allowlist |
+| `GET /api/v1/admin/users` | **Admin only.** Every account with its upload/transaction/rule/category counts |
+| `DELETE /api/v1/admin/users/:id` | **Admin only.** Deletes an account and all of its data |
 | `GET /healthz`, `/readyz`, `/metrics` | Probes and Prometheus metrics (`budgeit_*`) |
+
+## Administration
+
+An **Admin** link appears in the header for administrators and opens
+`#/admin`, listing every account with how much data each one holds
+(transactions, uploads, category rules, custom categories) and a **Delete**
+button per row.
+
+Deleting an account is permanent and removes, in one transaction: the user's
+transactions, uploads, category rules, custom categories, and the user record
+itself. The `user_id` foreign keys are plain `REFERENCES` without
+`ON DELETE CASCADE`, so the order matters — see `store.DeleteUser`.
+
+### Who is an administrator
+
+**The first account to log in becomes the administrator.** The claim is stored
+as `users.is_admin` (migration `003_admin_flag.sql`) and settled under an
+advisory lock, so if several people hit a brand-new deployment at the same
+instant exactly one of them wins. Everyone after that is an ordinary user.
+
+Because the flag lives in the database rather than the session cookie,
+granting or revoking it takes effect on the next request rather than when the
+30-day cookie expires.
+
+`ADMIN_EMAILS` in `deploy/base/configmap.yaml` is a secondary, out-of-band
+allowlist (comma-separated, case-insensitive) that grants the same access:
+
+```yaml
+ADMIN_EMAILS: "you@example.com"
+```
+
+You need it in two situations:
+
+- **The database already has users.** After migration 003 nobody holds the
+  flag, and "first login" has already happened — so the *next* login claims
+  it, whoever that turns out to be. On a deployment with traffic (the load
+  simulator creates ~50 accounts a minute) that will not be you. Either set
+  `ADMIN_EMAILS`, or promote a specific account directly:
+
+  ```sql
+  UPDATE users SET is_admin = true WHERE email = 'you@example.com';
+  ```
+
+- **The administrator's account was deleted**, leaving the seat unclaimed.
+
+Authorization is re-checked server-side on every `/admin` request; the UI link
+is a convenience, not the control.
+
+Two behaviours worth knowing:
+
+- **You cannot delete your own account.** It would revoke the session you are
+  using and, because accounts are created on first login, immediately
+  reappear as an empty one. The server returns `400` and the UI disables the
+  button on your own row.
+- **Deletion does not purge staged objects.** Uploaded files are removed from
+  the bucket by the worker right after extraction, so a completed upload has
+  nothing left in object storage; a file still awaiting processing when its
+  owner is deleted will be orphaned in the bucket.
+
+> **Security note.** Login is passwordless — supplying an email address is
+> sufficient to sign in as it (see `POST /api/v1/auth/login`). Administrator
+> status is therefore authorization sitting on top of no authentication:
+> anyone who can reach the app and knows the administrator's address can
+> assume it and delete every account. First-login-wins narrows the window (the
+> seat is taken as soon as you use the system) but does not close it. Until
+> real authentication lands, treat network-level access to the Route as
+> equivalent to administrator access, and **log in once immediately after
+> deploying** so the seat is not left for someone else to claim.

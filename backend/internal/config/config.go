@@ -8,7 +8,9 @@ package config
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -21,12 +23,12 @@ type Config struct {
 	SessionSecret string
 
 	// Object storage (S3-compatible, provisioned by an ObjectBucketClaim).
-	BucketHost   string
-	BucketPort   string
-	BucketName   string
-	S3AccessKey  string
-	S3SecretKey  string
-	S3UseSSL     bool
+	BucketHost  string
+	BucketPort  string
+	BucketName  string
+	S3AccessKey string
+	S3SecretKey string
+	S3UseSSL    bool
 	// LocalStorageDir is a filesystem fallback used when no bucket is
 	// configured (local development without ODF).
 	LocalStorageDir string
@@ -37,6 +39,12 @@ type Config struct {
 
 	MaxUploadBytes int64
 	Workers        int
+
+	// AdminEmails is the allowlist of accounts permitted to use the /admin
+	// endpoints. Login is passwordless, so administrator status cannot be
+	// inferred from the user record itself — it has to be granted here.
+	// Empty (the default) means nobody is an administrator.
+	AdminEmails []string
 
 	// Observability links surfaced in the frontend header: the Kibana Route
 	// and the budge-it dashboard inside it (see deploy/elastic).
@@ -64,6 +72,7 @@ func Load() (*Config, error) {
 		OCRAPIKey:       os.Getenv("OCR_API_KEY"),
 		MaxUploadBytes:  envInt64("MAX_UPLOAD_BYTES", 10<<20), // 10 MB per PRD
 		Workers:         int(envInt64("WORKERS", 4)),
+		AdminEmails:     envList("ADMIN_EMAILS"),
 
 		KibanaURL:          os.Getenv("KIBANA_URL"),
 		KibanaDashboardURL: os.Getenv("KIBANA_DASHBOARD_URL"),
@@ -81,6 +90,16 @@ func (c *Config) BucketConfigured() bool {
 	return c.BucketHost != "" && c.BucketName != ""
 }
 
+// IsAdmin reports whether email appears in the administrator allowlist.
+// Comparison is case-insensitive because emails are stored lowercased.
+func (c *Config) IsAdmin(email string) bool {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" {
+		return false
+	}
+	return slices.Contains(c.AdminEmails, email)
+}
+
 func (c *Config) S3Endpoint() string {
 	return c.BucketHost + ":" + c.BucketPort
 }
@@ -90,6 +109,18 @@ func envOr(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// envList splits a comma-separated variable into lowercased, trimmed entries,
+// dropping empties so "a@x.com, ,b@x.com" yields two addresses.
+func envList(key string) []string {
+	var out []string
+	for part := range strings.SplitSeq(os.Getenv(key), ",") {
+		if v := strings.ToLower(strings.TrimSpace(part)); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 func envInt64(key string, def int64) int64 {

@@ -3,9 +3,25 @@ package models
 import "time"
 
 type User struct {
-	ID        string    `json:"id"`
-	Email     string    `json:"email"`
+	ID    string `json:"id"`
+	Email string `json:"email"`
+	// IsAdmin is claimed by the first account to log in and can also be
+	// granted out-of-band via the ADMIN_EMAILS allowlist.
+	IsAdmin   bool      `json:"isAdmin"`
 	CreatedAt time.Time `json:"createdAt"`
+}
+
+// AdminUser is a User plus the volume of data attached to it, so the admin
+// page can show what deleting an account would actually remove.
+type AdminUser struct {
+	ID            string    `json:"id"`
+	Email         string    `json:"email"`
+	IsAdmin       bool      `json:"isAdmin"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UploadCount   int       `json:"uploadCount"`
+	TxnCount      int       `json:"txnCount"`
+	RuleCount     int       `json:"ruleCount"`
+	CategoryCount int       `json:"categoryCount"`
 }
 
 type UploadStatus string

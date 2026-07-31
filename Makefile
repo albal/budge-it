@@ -21,6 +21,12 @@ frontend:
 test:
 	cd backend && go vet ./... && go test ./...
 
+# Store tests that need a real PostgreSQL (first-login admin claim, cascading
+# deletes). Skipped by `make test`; run `make dev-deps` first.
+test-integration:
+	cd backend && TEST_DATABASE_URL=postgres://budgeit:budgeit@localhost:5432/budgeit \
+	go test -race ./internal/store/...
+
 build:
 	cd backend && go build ./...
 	cd frontend && npm run build

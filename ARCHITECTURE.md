@@ -207,6 +207,18 @@ seeded until authentication lands; every query is already scoped by
 `user_id`, so adding auth is a matter of swapping the subject in
 `api.userID()`.
 
+Only `transactions.upload_id` cascades on delete. The `user_id` foreign keys
+are plain `REFERENCES`, so removing an account (`DELETE /api/v1/admin/users/:id`)
+has to delete transactions → uploads → category rules → custom categories
+before the `users` row, all within one transaction — see `store.DeleteUser`.
+Administrator access is the `users.is_admin` column, claimed by the first
+account to log in (migration `003`). The claim runs inside a transaction
+holding `pg_advisory_xact_lock`, because the check ("does an administrator
+exist?") and the set are two statements: under READ COMMITTED every concurrent
+first login would otherwise see an empty seat and take it. The `ADMIN_EMAILS`
+allowlist grants the same access out-of-band, for bootstrapping a database
+that already has users and for recovery.
+
 ## 4. Network security contract
 
 `deploy/base/networkpolicies.yaml` enforces the PRD's traffic rules with a
