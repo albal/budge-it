@@ -26,6 +26,9 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=false # the cert-manager operator owns its namespace
+      # Honour ignoreDifferences during sync too, so a full sync never applies
+      # the placeholder api-token over the real Cloudflare token.
+      - RespectIgnoreDifferences=true
     # Same reasoning as the other apps: the cert-manager CRDs aren't
     # Established the instant the operator is installed, so retry with backoff
     # lets the ClusterIssuer/Certificate wave self-heal once OLM finishes.

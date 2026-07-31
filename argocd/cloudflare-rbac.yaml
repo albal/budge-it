@@ -1,0 +1,62 @@
+# Least-privilege RBAC letting the OpenShift GitOps application-controller
+# manage the cluster-scoped and cross-namespace resources in the
+# budge-it-cloudflare Application (deploy/cert-manager).
+#
+# This must be applied out-of-band (NOT via Argo) — it bootstraps the
+# controller's own permissions, and the controller cannot create ClusterRoles
+# for itself. Apply once:
+#   oc apply -f argocd/cloudflare-rbac.yaml
+#   oc label ns cert-manager argocd.argoproj.io/managed-by=openshift-gitops
+#
+# The cert-manager namespace itself is granted via the managed-by label
+# (the operator generates the standard admin Role/RoleBinding from it).
+---
+# Cluster-scoped: the two Let's Encrypt ClusterIssuers.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argocd-cloudflare-clusterissuers
+rules:
+  - apiGroups: ["cert-manager.io"]
+    resources: ["clusterissuers"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argocd-cloudflare-clusterissuers
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argocd-cloudflare-clusterissuers
+subjects:
+  - kind: ServiceAccount
+    name: openshift-gitops-argocd-application-controller
+    namespace: openshift-gitops
+---
+# Namespaced (openshift-ingress): only the cert-manager Certificate resources,
+# i.e. the apps-wildcard cert the router serves. Nothing else in the router
+# namespace is exposed to Argo.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argocd-cloudflare-certificates
+  namespace: openshift-ingress
+rules:
+  - apiGroups: ["cert-manager.io"]
+    resources: ["certificates"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argocd-cloudflare-certificates
+  namespace: openshift-ingress
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argocd-cloudflare-certificates
+subjects:
+  - kind: ServiceAccount
+    name: openshift-gitops-argocd-application-controller
+    namespace: openshift-gitops

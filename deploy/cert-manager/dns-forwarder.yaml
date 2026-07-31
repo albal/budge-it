@@ -66,7 +66,12 @@ spec:
             limits:
               memory: 64Mi
           securityContext:
-            allowPrivilegeEscalation: false
+            # The coredns binary carries a cap_net_bind_service file
+            # capability; with NoNewPrivs (allowPrivilegeEscalation:false) the
+            # kernel refuses to exec it ("Operation not permitted"). Allowing
+            # escalation lets it start; it still runs non-root and drops ALL
+            # capabilities, and binds only the unprivileged port 5353.
+            allowPrivilegeEscalation: true
             readOnlyRootFilesystem: true
             capabilities:
               drop:

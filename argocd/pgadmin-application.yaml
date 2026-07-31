@@ -32,6 +32,9 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=false # namespace.yaml in the path owns the Namespace
+      # Honour ignoreDifferences during sync too, so a full sync never applies
+      # the placeholder password over the real pgadmin-login secret.
+      - RespectIgnoreDifferences=true
     retry:
       limit: 10
       backoff:

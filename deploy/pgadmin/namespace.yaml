@@ -10,3 +10,6 @@ metadata:
     argocd.argoproj.io/sync-wave: "-2"
   labels:
     app.kubernetes.io/part-of: budge-it
+    # Grants the OpenShift GitOps controller RBAC to manage resources in this
+    # namespace (the operator creates the RoleBindings from this label).
+    argocd.argoproj.io/managed-by: openshift-gitops
