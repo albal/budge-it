@@ -1,0 +1,27 @@
+# Wildcard certificate for the OpenShift router. Once it reports Ready,
+# make it the router's default certificate:
+#
+#   oc patch ingresscontroller default -n openshift-ingress-operator \
+#     --type=merge \
+#     -p '{"spec":{"defaultCertificate":{"name":"apps-wildcard-tls"}}}'
+#
+# Every edge-terminated Route (including budgeit and budgeit-api) then
+# serves the Let's Encrypt cert automatically; renewals are handled by
+# cert-manager ~30 days before expiry.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: apps-wildcard
+  namespace: openshift-ingress
+spec:
+  secretName: apps-wildcard-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-prod
+  commonName: "*.apps.budgie.lab.tsew.net"
+  dnsNames:
+    - "*.apps.budgie.lab.tsew.net"
+  duration: 2160h # 90d
+  renewBefore: 720h # 30d
+  privateKey:
+    rotationPolicy: Always

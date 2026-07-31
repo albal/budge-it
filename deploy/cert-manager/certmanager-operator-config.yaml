@@ -1,0 +1,16 @@
+# Operator-level config for cert-manager (cert-manager Operator for
+# Red Hat OpenShift), matching the working okd-prod pattern.
+# Points DNS-01 self-checks at Cloudflare resolvers instead of the lab's
+# split-horizon DNS, which is authoritative for lab.tsew.net and never
+# sees the _acme-challenge TXT records.
+apiVersion: operator.openshift.io/v1alpha1
+kind: CertManager
+metadata:
+  name: cluster
+spec:
+  managementState: Managed
+  unsupportedConfigOverrides:
+    controller:
+      args:
+        - '--dns01-recursive-nameservers=1.1.1.1:53,1.0.0.1:53'
+        - '--dns01-recursive-nameservers-only'

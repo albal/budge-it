@@ -1,0 +1,46 @@
+# Let's Encrypt ClusterIssuers using Cloudflare DNS-01 validation.
+# DNS-01 works even though budgie.lab.tsew.net resolves internally: the
+# challenge only needs the _acme-challenge TXT record in the public
+# tsew.net zone on Cloudflare.
+#
+# Use letsencrypt-staging while testing (relaxed rate limits, untrusted CA),
+# then switch to letsencrypt-prod.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: al@tsew.net
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token
+        selector:
+          dnsZones:
+            - tsew.net
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: al@tsew.net
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token
+        selector:
+          dnsZones:
+            - tsew.net

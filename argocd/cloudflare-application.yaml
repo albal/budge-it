@@ -1,0 +1,46 @@
+# Argo CD Application owning the cert-manager Cloudflare DNS-01 setup: the
+# CertManager operator overrides, the Let's Encrypt ClusterIssuers, the
+# Cloudflare API-token Secret, the wildcard router Certificate, and the
+# optional DoT DNS forwarder — everything under deploy/cert-manager.
+# Apply once alongside argocd/application.yaml:
+#   oc apply -f argocd/cloudflare-application.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: budge-it-cloudflare
+  namespace: openshift-gitops
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/albal/budge-it.git
+    targetRevision: main
+    path: deploy/cert-manager
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      # prune deliberately off: removing this Application (or renaming a
+      # manifest) must not delete the ClusterIssuers, the Cloudflare token
+      # Secret, or the issued apps-wildcard-tls the router serves.
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false # the cert-manager operator owns its namespace
+    # Same reasoning as the other apps: the cert-manager CRDs aren't
+    # Established the instant the operator is installed, so retry with backoff
+    # lets the ClusterIssuer/Certificate wave self-heal once OLM finishes.
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+  ignoreDifferences:
+    # cloudflare-api-token-secret.yaml ships a placeholder; the real token is
+    # applied out-of-band (see that file's header). Never let selfHeal revert
+    # the live token back to PASTE_CLOUDFLARE_API_TOKEN_HERE.
+    - group: ""
+      kind: Secret
+      name: cloudflare-api-token
+      jsonPointers:
+        - /data
