@@ -167,6 +167,14 @@ spec:
         - podSelector:
             matchLabels:
               app: budgeit-cleanup
+        # pgAdmin (deploy/pgadmin) runs in its own namespace and queries the
+        # database directly through the web UI.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: pgadmin
+          podSelector:
+            matchLabels:
+              app: pgadmin
       ports:
         - port: 5432
     - from:

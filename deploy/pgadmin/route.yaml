@@ -1,0 +1,22 @@
+# Edge-terminated Route; TLS uses the router's default wildcard cert
+# (apps-wildcard-tls, issued by cert-manager). Reachable at
+# https://pgadmin.apps.budgie.lab.tsew.net
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: pgadmin
+  namespace: pgadmin
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  labels:
+    app: pgadmin
+spec:
+  host: pgadmin.apps.budgie.lab.tsew.net
+  to:
+    kind: Service
+    name: pgadmin
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

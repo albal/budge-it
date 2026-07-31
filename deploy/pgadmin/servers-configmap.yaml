@@ -1,0 +1,31 @@
+# Pre-registers the budgeit-db connection in pgAdmin so you don't have to add
+# the server by hand. Mounted at /pgadmin4/servers.json, it is imported on
+# first startup (into the empty config DB on the PVC).
+#
+# The password is deliberately NOT included here. When you first expand the
+# server in the UI, pgAdmin prompts for it; grab it from the Crunchy-managed
+# secret:
+#   oc -n budge-it get secret budgeit-db-pguser-budgeit \
+#     -o jsonpath='{.data.password}' | base64 -d; echo
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgadmin-servers
+  namespace: pgadmin
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+data:
+  servers.json: |
+    {
+      "Servers": {
+        "1": {
+          "Name": "budgeit-db",
+          "Group": "budge-it",
+          "Host": "budgeit-db-primary.budge-it.svc",
+          "Port": 5432,
+          "MaintenanceDB": "budgeit",
+          "Username": "budgeit",
+          "SSLMode": "require"
+        }
+      }
+    }

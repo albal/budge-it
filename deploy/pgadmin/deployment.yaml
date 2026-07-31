@@ -1,0 +1,104 @@
+# pgAdmin 4 web UI (dpage/pgadmin4).
+#
+# OpenShift notes:
+#  - PGADMIN_LISTEN_PORT is 5050 (>1024) so the server binds without root.
+#  - No runAsUser: the restricted-v2 SCC assigns an arbitrary UID and an
+#    fsGroup; the fsGroup makes the pgadmin-data PVC group-writable, which is
+#    all pgAdmin needs to write its config DB under /var/lib/pgadmin.
+#  - readOnlyRootFilesystem is intentionally NOT set: pgAdmin writes to
+#    several paths outside the mounted volume.
+#
+# If the pod ever fails to start with permission errors on /var/lib/pgadmin,
+# the fallback is to grant the `anyuid` SCC to the pgadmin ServiceAccount so
+# it can run as the image's native UID 5050:
+#   oc adm policy add-scc-to-user anyuid -z pgadmin -n pgadmin
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgadmin
+  namespace: pgadmin
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  labels:
+    app: pgadmin
+    app.kubernetes.io/component: db-admin
+spec:
+  replicas: 1
+  # pgAdmin holds an exclusive lock on its config DB on the RWO PVC, so never
+  # run two at once during a rollout.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: pgadmin
+  template:
+    metadata:
+      labels:
+        app: pgadmin
+    spec:
+      serviceAccountName: pgadmin
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: pgadmin
+          image: docker.io/dpage/pgadmin4:latest
+          ports:
+            - name: http
+              containerPort: 5050
+          env:
+            - name: PGADMIN_LISTEN_PORT
+              value: "5050"
+            - name: PGADMIN_DEFAULT_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: pgadmin-login
+                  key: email
+            - name: PGADMIN_DEFAULT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pgadmin-login
+                  key: password
+            # No local mail relay in-cluster; disable Postfix startup.
+            - name: PGADMIN_DISABLE_POSTFIX
+              value: "True"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/pgadmin
+            - name: servers
+              mountPath: /pgadmin4/servers.json
+              subPath: servers.json
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /misc/ping
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /misc/ping
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: pgadmin-data
+        - name: servers
+          configMap:
+            name: pgadmin-servers

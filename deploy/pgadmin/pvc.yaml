@@ -1,0 +1,18 @@
+# pgAdmin stores its config DB (server list, preferences, session data) under
+# /var/lib/pgadmin. A small RWO PVC on the default ODF storage class keeps it
+# across pod restarts. OpenShift's restricted-v2 SCC injects an fsGroup from
+# the namespace range, which makes this volume group-writable so pgAdmin can
+# write to it while running as an arbitrary non-root UID.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pgadmin-data
+  namespace: pgadmin
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

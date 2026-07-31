@@ -1,0 +1,48 @@
+# Argo CD Application owning the pgAdmin web UI (deploy/pgadmin): its own
+# namespace, ServiceAccount, login Secret, PVC, pre-registered server list,
+# Deployment, Service and Route. pgAdmin gives a browser-based console onto
+# the Crunchy-managed budgeit-db PostgreSQL cluster.
+#
+# NOTE: pgAdmin also needs to reach Postgres, which is guarded by the
+# postgres-ingress NetworkPolicy in deploy/base/networkpolicies.yaml (owned by
+# the budge-it Application). That policy has been updated to allow the pgadmin
+# namespace; it takes effect once that change is committed and the budge-it
+# app syncs.
+#
+# Apply once alongside argocd/application.yaml:
+#   oc apply -f argocd/pgadmin-application.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: budge-it-pgadmin
+  namespace: openshift-gitops
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/albal/budge-it.git
+    targetRevision: main
+    path: deploy/pgadmin
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: pgadmin
+  syncPolicy:
+    automated:
+      # prune deliberately off: removing this Application must not delete the
+      # pgadmin-data PVC (server list / preferences) or the login Secret.
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false # namespace.yaml in the path owns the Namespace
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+  ignoreDifferences:
+    # pgadmin-secret.yaml ships a placeholder password; the real one is applied
+    # out-of-band. Never let selfHeal revert it to the placeholder.
+    - group: ""
+      kind: Secret
+      name: pgadmin-login
+      jsonPointers:
+        - /data

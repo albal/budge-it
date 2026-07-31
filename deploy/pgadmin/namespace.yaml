@@ -1,0 +1,12 @@
+# Dedicated namespace for pgAdmin. Kept separate from budge-it so the
+# app-level default-deny NetworkPolicy there doesn't need a router-ingress
+# exception; the only cross-namespace rule needed is pgAdmin -> Postgres,
+# added to postgres-ingress in deploy/base/networkpolicies.yaml.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pgadmin
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+  labels:
+    app.kubernetes.io/part-of: budge-it
