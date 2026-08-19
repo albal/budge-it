@@ -26,7 +26,7 @@ spec:
           - ReadWriteOnce
         resources:
           requests:
-            storage: 5Gi
+            storage: 40Gi
       resources:
         requests:
           cpu: 250m
@@ -44,6 +44,17 @@ spec:
     key: init.sql
   backups:
     pgbackrest:
+      # Without explicit retention pgBackRest never expires anything, so the
+      # WAL archive grows without bound: repo1 reached 39G of archive/ against
+      # 367M of actual backup/, which filled the repo, broke archive-push and
+      # backed 20G of unarchivable WAL up into pgdata until Postgres wedged.
+      # Keeping two full backups (and only the WAL needed to recover them)
+      # bounds the archive at roughly two weeks of history.
+      global:
+        repo1-retention-full: "2"
+        repo1-retention-full-type: count
+        repo1-retention-archive: "2"
+        repo1-retention-archive-type: full
       repos:
         - name: repo1
           schedules:
@@ -56,7 +67,7 @@ spec:
                 - ReadWriteOnce
               resources:
                 requests:
-                  storage: 10Gi
+                  storage: 80Gi
   monitoring:
     pgmonitor:
       exporter: {}
